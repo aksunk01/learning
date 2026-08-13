@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Column, String, ForeignKey, Text
+from sqlalchemy import String, ForeignKey, Text
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 from sqlalchemy.dialects.postgresql import UUID
 
@@ -47,3 +47,11 @@ class Course(Base):
         "User",
         back_populates="courses",
     )
+
+    materials = relationship(
+        "CourseMaterial",
+        back_populates="course",
+        cascade="all, delete-orphan"
+    )
+
+    
