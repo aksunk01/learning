@@ -1,7 +1,7 @@
 import uuid
 
-from sqlalchemy import String, DateTime, UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import String, DateTime
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.db.base import Base
@@ -29,4 +29,10 @@ class User(Base):
         DateTime(timezone=True),
         server_default=func.now(),
         nullable=False
+    )
+
+    courses = relationship(
+        "Course",
+        back_populates="user",
+        cascade="all, delete-orphan"
     )
