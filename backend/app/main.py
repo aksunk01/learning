@@ -3,6 +3,7 @@ from app.db.database import engine
 from sqlalchemy import text
 from app.api import health
 from app.api.v1 import users
+from app.api import auth
 
 
 app = FastAPI(
@@ -12,6 +13,7 @@ app = FastAPI(
 
 app.include_router(users.router, prefix="/api/v1")
 app.include_router(health.router)
+app.include_router(auth.router, prefix="/api/v1")
 
 
 @app.get("/health/database")
