@@ -1,25 +1,21 @@
-from pathlib import Path
+
 
 from .base import DocumentElement, DocumentParser, ParsedDocument
 
 class TXTParser(DocumentParser):
 
     def parse(self, file_path: str) -> ParsedDocument:
-        path = Path(file_path)
-
-        text = path.read_text(encoding="utf-8")
+        text = open(file_path, encoding="utf-8").read()
 
         element = DocumentElement(
             text=text,
-            metadata={
-                "file_name": path.name,
-            },
+            metadata=self._get_element_metadata(file_path)
         )
 
         return ParsedDocument(
             elements=[element],
-            metadata={
-                "file_name": path.name,
-                "file_type": "txt",
-            },
+            metadata=self._get_file_metadata(
+                file_path,
+                "txt"
+            )
         )
