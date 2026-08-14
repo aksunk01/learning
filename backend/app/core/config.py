@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     MINIO_ENDPOINT: str
     MINIO_ROOT_USER: str
     MINIO_ROOT_PASSWORD: str
+    MINIO_BUCKET: str
 
     OLLAMA_BASE_URL: str
 
