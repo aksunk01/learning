@@ -37,6 +37,9 @@ class CourseMaterialResponse(CourseMaterialBase):
     file_path: str
     mime_type: str | None
     file_size: int | None
+    processing_status: str
+    processing_error: str | None
+    processed_at: datetime | None
 
 
     model_config = ConfigDict(from_attributes=True)

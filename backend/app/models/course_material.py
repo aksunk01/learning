@@ -65,6 +65,22 @@ class CourseMaterial(Base):
         server_default="now()",
     )
 
+    processing_status: Mapped[str] = mapped_column(
+        String(20),
+        nullable = False,
+        server_default="pending"
+    )
+
+    processing_error: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True
+    )
+
+    processed_at: Mapped[str | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable = True
+    )
+
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

@@ -8,6 +8,7 @@ from app.models.course import Course
 from app.models.user import User
 from app.schemas.course import CourseCreate, CourseResponse, CourseUpdate
 from app.api.auth import get_current_user
+from app.services.storage import delete_file
 
 router = APIRouter(
     prefix='/courses',
@@ -74,14 +75,27 @@ def update_course(course_id: UUID, course_data: CourseUpdate, db: Session = Depe
     return course
 
 
-@router.delete("/{course_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{course_id}", status_code=status.HTTP_200_OK)
 def delete_course(course_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     course = db.query(Course).filter(Course.id == course_id, Course.user_id == current_user.id).first()
     
     if course is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
 
-    db.delete(course)
-    db.commit()
+    try:
+        for material in course.materials:
+            delete_file(material.file_path)
+        
+        db.delete(course)
+        db.commit()
+    except Exception as e:
+        db.rollback()
 
-    return None
+        raise HTTPException(
+            status_code = status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete course: {e}"
+        )
+
+    return{
+        "message": "Course and all associated materials deleted successfully"
+    }

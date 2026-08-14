@@ -1,0 +1,7 @@
+Introduction to Algorithms
+
+Algorithms are step-by-step procedures used to solve computational problems.
+
+Binary Search
+
+Binary search works efficiently on sorted data.
