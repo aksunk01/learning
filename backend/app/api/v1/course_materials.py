@@ -13,6 +13,7 @@ from app.models.course_material import CourseMaterial
 from app.models.user import User
 from app.schemas.course_materials import CourseMaterialResponse, CourseMaterialUpdate
 from app.services.storage import upload_file, delete_file, download_file
+from app.services.document_processing.material_service import CourseMaterialProcessingService
 
 
 router = APIRouter(
@@ -192,4 +193,43 @@ def delete_course_material(course_id: UUID, material_id: UUID, db: Session = Dep
 
     return {
         "message": "Course material and file deleted successfully"
+    }
+
+
+@router.post("/{material_id}/process")
+def process_course_material(course_id: UUID, material_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    material = (
+        db.query(CourseMaterial).join(Course).filter(
+            CourseMaterial.id == material_id,
+            CourseMaterial.course_id == course_id,
+            Course.user_id == current_user.id
+        ).first()
+    )
+
+    if material is None:
+        raise HTTPException(
+            status_code = status.HTTP_404_NOT_FOUND,
+            detail="Course material not found"
+        )
+
+    service = CourseMaterialProcessingService()
+
+    try:
+        chunks = service.process(
+            material=material,
+            db=db
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code = status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process course material: {e}"
+        )
+    
+    return {
+        "message": "Course material processed successfully",
+        "material_id": str(material.id),
+        "processing_status": material.processing_status,
+        "chunk_count": len(chunks),
+        "processed_at": material.processed_at
     }
