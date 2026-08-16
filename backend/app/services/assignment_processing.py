@@ -31,7 +31,7 @@ class AssignmentProcessingService:
     def __init__(self) -> None:
         self.extraction_service = AssignmentExtractionService()
 
-    def process_material(self, material: CourseMaterial, db: Session, course_context: str | None = None) -> list[Assignment]:
+    def process_material(self, material: CourseMaterial, db: Session, course_context: str | None = None, commit_changes: bool = True) -> list[Assignment]:
         chunks = (
             db.query(DocumentChunk)
             .filter(
@@ -182,9 +182,12 @@ Source: {material.file_name}, {location}
 
         db.add_all(assignment_models)
 
-        db.commit()
+        if commit_changes:
+            db.commit()
 
-        for assignment in assignment_models:
-            db.refresh(assignment)
+            for assignment in assignment_models:
+                db.refresh(assignment)
+        else:
+            db.flush()
 
         return assignment_models

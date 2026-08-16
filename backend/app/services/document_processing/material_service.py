@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.models.course_material import CourseMaterial
 from app.services.document_processing.chunking import DocumentChunk
 from app.services.document_processing.service import DocumentProcessingError, DocumentProcessingService
+from app.services.assignment_processing import AssignmentProcessingService
 from app.services.storage import download_file_to_temp
 from app.services.embedding import EmbeddingService, EMBEDDING_DIMENSION, EMBEDDING_MODEL
 from app.models.document_chunk import DocumentChunk as DcoumentChunkModel
@@ -15,6 +16,7 @@ class CourseMaterialProcessingService:
     def __init__(self) -> None:
         self.document_processor = DocumentProcessingService()
         self.embedding_service = EmbeddingService()
+        self.assignment_processor = AssignmentProcessingService()
     
     def process(self, material: CourseMaterial, db:Session) -> list[DocumentChunk]:
         temp_file_path: str | None = None
@@ -64,6 +66,26 @@ class CourseMaterialProcessingService:
             ]
 
             db.add_all(chunk_models)
+
+            db.flush()
+
+            course_context_parts = [
+                material.course.code,
+                material.course.semester
+            ]
+
+            course_context = ", ".join(
+                value
+                for value in course_context_parts
+                if value
+            )
+
+            self.assignment_processor.process_material(
+                material=material,
+                db=db,
+                course_context=course_context or None,
+                commit_changes=False
+            )
 
             material.processing_status = "completed"
             material.processing_error = None
