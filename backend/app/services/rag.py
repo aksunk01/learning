@@ -27,7 +27,7 @@ class RAGService:
         context_parts: list[str] =[]
         sources: list[dict] = []
 
-        for chunk, material, distance in results:
+        for source_id, (chunk,material, distance) in enumerate(results, start=1):
             location_parts: list[str] = []
 
             if chunk.page_start is not None:
@@ -57,6 +57,7 @@ class RAGService:
 
             context_parts.append(
                 f"""
+[{source_id}]
 Source: {material.file_name}, {location}
 
 {chunk.content}
@@ -65,6 +66,7 @@ Source: {material.file_name}, {location}
 
             sources.append(
                 {
+                    "source_id": source_id,
                     "material_id": str(material.id),
                     "file_name": material.file_name,
                     "chunk_index": chunk.chunk_index,

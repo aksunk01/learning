@@ -6,6 +6,7 @@ class CourseQuestionRequest(BaseModel):
 
 
 class RAGSource(BaseModel):
+    source_id: int
     material_id: str
     file_name: str
     chunk_index: int
@@ -14,6 +15,7 @@ class RAGSource(BaseModel):
     slide_number: int | None = None
     section: str | None = None
     distance: float
+    
 
 class CourseQuestionResponse(BaseModel):
     answer: str
