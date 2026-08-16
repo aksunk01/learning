@@ -8,7 +8,7 @@ from alembic import context
 from app.core.config import settings
 from app.db.base import Base
 target_metadata = Base.metadata
-from app.models import user,course, course_material
+from app.models import user,course, course_material, document_chunk
 
 
 

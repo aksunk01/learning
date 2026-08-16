@@ -92,3 +92,9 @@ class CourseMaterial(Base):
         "Course",
         back_populates="materials",
     )
+
+    chunks = relationship(
+        "DocumentChunk",
+        back_populates="material",
+        cascade="all, delete-orphan"
+    )

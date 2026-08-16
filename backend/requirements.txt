@@ -31,4 +31,8 @@ uvicorn==0.51.0
 PyMuPDF
 python-docx
 python-pptx
+pgvector==0.5.0
+google-genai==2.18.1
+
+
 

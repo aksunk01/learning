@@ -19,6 +19,8 @@ class DocumentChunk:
 
     metadata: dict[str,object] = field(default_factory=dict)
 
+    embedding: list[float] | None = None
+
 def estimate_tokens(text: str) -> int:
     return max(1, len(text) // CHARS_PER_TOKEN)
 

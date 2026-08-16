@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
+    GOOGLE_API_KEY: str
+
     class Config:
         env_file= ".env"
 
