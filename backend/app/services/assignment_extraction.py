@@ -6,7 +6,7 @@ import time
 from app.core.config import settings
 from app.schemas.assignment_extraction import AssignmentExtractionResult
 
-EXTRACTION_MODEL = "gemini-3.5-flash"
+EXTRACTION_MODEL = "gemini-3.6-flash"
 
 
 class AssignmentExtractionService:
@@ -18,7 +18,18 @@ class AssignmentExtractionService:
 
     def extract_assignments(self, text: str, course_context: str | None = None) -> AssignmentExtractionResult:
         prompt = f"""
-Extract assignments, projects, exams, quizzes, labs, papers, and other graded course work from the course material below.
+Extract academic tasks and important deadlines from the course material below.
+
+Include:
+- homework due dates
+- project due dates
+- exam dates
+- quiz due dates
+- lab due dates
+- paper or presentation due dates
+- other explicitly stated academic deadlines that the student needs to act on or remember
+
+Do not extract ordinary course schedule dates unless they represent a task, deadline, exam, or other important student obligation.
 
 Course context:
 {course_context or "Not provided"}
@@ -39,10 +50,13 @@ Course material:
                         response_mime_type="application/json",
                         response_schema=AssignmentExtractionResult,
                         system_instruction=(
-                            "You extract structured academic assignment information from course materials. "
-                            
-                            "Extract assignments, homework, projects, exams, quizzes, labs, papers, and other "
-                            "graded course work that is explicitly supported by the provided course material. "
+
+                            "You extract structured academic task and deadline information from course materials. "
+                            "Extract homework, projects, exams, quizzes, labs, papers, presentations, and other "
+                            "academic tasks or important deadlines that are explicitly supported by the provided course material. "
+                            "Only extract an item when the course material explicitly provides a date or deadline for it. "
+
+                            "Do not extract assignments, projects, exams, or other course work that are mentioned without an associated date. "
                             
                             "Do not invent assignments, deadlines, points, grading weights, titles, or other facts. "
                             "If a field is not specified by the course material, return null for that field. "
@@ -79,7 +93,7 @@ Course material:
                             "If the course material contains multiple genuinely separate assignments or graded items, "
                             "return each one separately. "
                             
-                            "If the course material contains no assignments or graded work, return an empty "
+                            "If the course material contains no academic tasks or important deadlines, return an empty "
                             "assignments list."
                         )
                     )
@@ -98,6 +112,16 @@ Course material:
         if not response.text:
             raise ValueError("Gemini returned an exmpty extraction response")
 
-        return AssignmentExtractionResult.model_validate_json(
+        
+        result =  AssignmentExtractionResult.model_validate_json(
             response.text
         )
+
+        result.assignments = [
+            assignment
+            for assignment in result.assignments
+            if assignment.due_date is not None
+            or assignment.raw_due_text is not None
+        ]
+
+        return result

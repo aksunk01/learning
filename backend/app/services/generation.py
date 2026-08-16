@@ -5,7 +5,7 @@ import time
 
 from app.core.config import settings
 
-GENERATION_MODEL = "gemini-3.5-flash"
+GENERATION_MODEL = "gemini-3.6-flash"
 
 class GenerationService:
     def __init__(self)-> None:
