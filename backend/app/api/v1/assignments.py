@@ -59,7 +59,7 @@ def get_course_assignments(course_id: UUID, db: Session = Depends(get_db), curre
 
 
 @all_assignments_router.get("", response_model=list[AssignmentResponse])
-def get_all_assignments(start: date | None = None, end: date | None = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_all_assignments(course_id: UUID | None = None, start: date | None = None, end: date | None = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     query = (
         db.query(Assignment)
         .join(
@@ -70,6 +70,11 @@ def get_all_assignments(start: date | None = None, end: date | None = None, db: 
             Course.user_id == current_user.id
         )
     )
+
+    if course_id is not None:
+        query = query.filter(
+            Assignment.course_id == course_id
+        )
 
     if start is not None:
         start_local = datetime.combine(
@@ -123,4 +128,26 @@ def get_upcoming_assignments(db: Session = Depends(get_db), current_user: User =
         )
         .all()
     )
+    return assignments
+
+@all_assignments_router.get("/overdue", response_model=list[AssignmentResponse])
+def get_overdue_assignment(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    now = datetime.now(timezone.utc)
+
+    assignments = (
+        db.query(Assignment)
+        .join(
+            Course,
+            Assignment.course_id == Course.id
+        )
+        .filter(
+            Course.user_id == current_user.id,
+            Assignment.due_at < now
+        )
+        .order_by(
+            Assignment.due_at.desc()
+        )
+        .all()
+    )
+
     return assignments
