@@ -27,8 +27,9 @@ def create_course(course_data: CourseCreate, db:Session = Depends(get_db), curre
         code=course_data.code,
         description=course_data.description,
         semester=course_data.semester,
+        schedule=course_data.schedule.model_dump() if course_data.schedule else None,
         user_id=current_user.id
-    )
+         )
 
     db.add(course)
     db.commit()
