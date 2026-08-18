@@ -7,6 +7,7 @@ class CourseBase(BaseModel):
     code: str
     description: str | None = None
     semester: str | None = None
+    schedule: dict | None = None
 
 
 class CourseCreate(CourseBase):
@@ -17,6 +18,7 @@ class CourseUpdate(CourseBase):
     code: str | None = None
     description: str | None = None
     semester: str | None = None
+    schedule: dict | None = None
 
 
 class CourseResponse(CourseBase):

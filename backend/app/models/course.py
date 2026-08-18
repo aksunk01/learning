@@ -2,7 +2,7 @@ import uuid
 
 from sqlalchemy import String, ForeignKey, Text
 from sqlalchemy.orm import relationship, mapped_column, Mapped
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 from app.db.base import Base
 
@@ -40,6 +40,11 @@ class Course(Base):
 
     semester: Mapped[str | None] = mapped_column(
         String(100),
+        nullable=True,
+    )
+
+    schedule: Mapped[dict | None] = mapped_column(
+        JSONB,
         nullable=True,
     )
 
