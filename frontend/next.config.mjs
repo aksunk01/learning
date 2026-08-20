@@ -1,6 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  /* config options here */
+  allowedDevOrigins: [
+    'macbook',
+    'macbook:3000',
+    '*.ts.net'
+  ]
 };
+
+
 
 export default nextConfig;
