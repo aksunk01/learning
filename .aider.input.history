@@ -2676,3 +2676,1731 @@
 +
 +After making these changes, stop.
 +
+
+# 2026-08-19 16:27:13.952798
++D
+
+# 2026-08-19 16:27:24.866479
++Update only:
++
++`frontend/src/app/dashboard/page.js`
++
++Goal:
++
++Display the human-readable course name underneath each assignment in the **Upcoming Work** section.
++
++The dashboard API already returns both:
++
++* `upcoming`
++* `course_summaries`
++
++Do not make another API request.
++
++The relevant backend structures are:
++
++`AssignmentResponse`:
++
++* `id`
++* `course_id`
++* `title`
++* `assignment_type`
++* `due_at`
++* other assignment fields
++
++`CourseSummary`:
++
++* `course_id`
++* `course_name`
++* `course_code`
++* `semester`
++* `upcoming_count`
++* `next_assignment`
++
++Use `assignment.course_id` to find the matching entry in `course_summaries` where:
++
++`summary.course_id === assignment.course_id`
++
++Then display the matching `course_name` in the Upcoming Work row.
++
++Desired presentation:
++
++Assignment Title
++Course Name · Assignment Type
++Due Date
++
++For example:
++
++Homework 4
++CSE 516 Fundamentals of Computer Networking · homework
++Sep 18, 2026
++
++Requirements:
++
++1. Do not display the raw `course_id`.
++
++2. Do not make another API call.
++
++3. Do not modify the backend.
++
++4. Do not modify:
++
++   * `dashboard-api.js`
++   * `auth-api.js`
++   * login page
++   * other frontend pages
++
++5. Use the existing `course_summaries` data already returned by `GET /api/v1/dashboard`.
++
++6. If no matching course summary can be found:
++
++   * do not display a UUID
++   * simply display `assignment_type` if available
++   * do not invent a course name
++
++7. Keep the existing dashboard layout and styling.
++
++8. Keep the existing due-date Badge.
++
++9. JavaScript only.
++
++10. Keep the implementation simple. A small helper function such as:
++
++`getCourseSummary(courseId)`
++
++or
++
++`getCourseName(courseId)`
++
++is acceptable.
++
++Do not introduce new state or React effects for this.
++
++After making the change:
++
++* show exactly what changed
++* explain how `course_id` is mapped to `course_name`
++* confirm that no additional API request was added
++* stop
++
+
+# 2026-08-19 16:30:39.488654
++D
+
+# 2026-08-19 16:30:42.005329
++Modify only the existing file:
++
++`frontend/src/app/dashboard/page.js`
++
++Important:
++
++* This file already contains the complete working dashboard.
++* Do not replace or recreate the page.
++* Do not remove any existing sections.
++* Do not change authentication, API fetching, loading, error handling, summary metrics, Next Exam, Next Project, Course Overview, or Workload.
++* Do not modify backend files.
++* Do not add API calls.
++
++Goal:
++
++In the existing **Upcoming Work** section, display the human-readable course name for each assignment.
++
++The dashboard response already contains:
++
++* `upcoming`
++* `course_summaries`
++
++Each upcoming assignment has:
++
++`assignment.course_id`
++
++Each course summary has:
++
++* `course_id`
++* `course_name`
++
++Use the already-loaded `course_summaries` array to resolve the name.
++
++For each assignment, find the matching course summary where:
++
++`summary.course_id === assignment.course_id`
++
++Then display:
++
++`Course Name · assignment_type`
++
++under the assignment title.
++
++Example:
++
++`CSE 516 Fundamentals of Computer Networking · homework`
++
++Requirements:
++
++* do not display raw UUIDs
++* do not make another API request
++* do not add new React state
++* do not add another `useEffect`
++* do not change the existing due-date Badge
++* if no matching course is found, display only `assignment_type` if present
++* keep the existing dashboard layout and styling
++
++A small helper such as:
++
++`getCourseName(courseId)`
++
++is acceptable.
++
++After making only this change:
++
++* show exactly what changed
++* confirm no additional API call was added
++* stop
++
+
+# 2026-08-19 16:37:32.489316
++D
+
+# 2026-08-19 16:37:49.286447
++Inspect the existing FastAPI course delete endpoint and current frontend course implementation.
++
++Do not edit any files.
++
++Determine:
++
++* the exact DELETE endpoint path for a course
++* whether it returns 204, JSON, or another response
++* whether it requires JWT authentication
++* what ownership/security checks the backend already performs
++* the current frontend Courses page location
++* whether a frontend courses API helper already exists
++* how the frontend currently loads courses
++* whether shadcn AlertDialog is already installed
++
++Important:
++
++* JavaScript only
++* do not modify backend files
++* do not implement anything yet
++* do not guess
++* stop after reporting findings
++
+
+# 2026-08-19 16:39:33.632149
++/add frontend/src/components/ui/alert-dialog.jsx
+
+# 2026-08-19 16:39:38.087919
++Implement only the frontend API helper needed to delete a course.
++
++Use the existing frontend file:
++
++`frontend/src/lib/courses-api.js`
++
++Use the real backend contract already inspected:
++
++`DELETE /api/v1/courses/{course_id}`
++
++The endpoint:
++
++* requires JWT authentication
++* verifies course ownership
++* returns HTTP 200 with a JSON success response
++
++Requirements:
++
++* JavaScript only.
++* Do not modify backend files.
++* Do not modify the Courses page yet.
++* Do not create a Next.js API route.
++* Reuse the existing API helper structure.
++* Use `NEXT_PUBLIC_API_BASE_URL`.
++* Do not hardcode the backend URL.
++
++Add a function:
++
++`deleteCourse(courseId, token)`
++
++The function must:
++
++1. Validate that `NEXT_PUBLIC_API_BASE_URL` exists.
++2. Send:
++   `DELETE ${NEXT_PUBLIC_API_BASE_URL}/api/v1/courses/${courseId}`
++3. Include:
++   `Authorization: Bearer <token>`
++4. Parse and return the JSON success response.
++5. Throw a useful Error if the response is not successful.
++6. Do not add React state or UI logic.
++7. Do not hardcode a JWT.
++
++Do not modify:
++
++* dashboard files
++* login files
++* backend files
++* unrelated frontend code
++
++After making the change:
++
++* show the final `deleteCourse` function
++* list exactly which file was modified
++* explain how success and failure are handled
++* stop
++
+
+# 2026-08-19 16:43:59.546850
++Update the existing Courses page to allow the user to delete a course with confirmation.
++
++Use:
++
++* `frontend/src/app/courses/page.js`
++* `frontend/src/lib/courses-api.js`
++* installed shadcn `AlertDialog`
++* Lucide icons
++
++Existing API helper:
++
++`deleteCourse(courseId, token)`
++
++Existing delete endpoint:
++
++`DELETE /api/v1/courses/{course_id}`
++
++Requirements:
++
++* JavaScript only.
++* Do not modify backend files.
++* Preserve the existing Courses page layout and styling.
++* Do not create a new API route.
++* Do not use `window.confirm()`.
++
++For each course in the existing course view:
++
++1. Add a Delete action using a Lucide trash icon where appropriate.
++
++2. Clicking Delete must open a shadcn `AlertDialog`.
++
++3. The dialog should show:
++
++Title:
++
++`Delete course?`
++
++Description:
++
++`This will permanently delete <course name>. This action cannot be undone.`
++
++Do not claim that assignments, materials, or other related records are deleted unless that behavior is already confirmed by the backend.
++
++4. Provide two actions:
++
++* Cancel
++* Delete course
++
++5. Style `Delete course` as destructive.
++
++On confirmed deletion:
++
++1. Read:
++
++`localStorage.getItem("access_token")`
++
++2. If there is no token:
++
++   * redirect to `/login`
++   * do not send the DELETE request
++
++3. Call:
++
++`deleteCourse(course.id, token)`
++
++4. While the request is running:
++
++   * disable the destructive confirmation button
++   * show text such as `Deleting...`
++
++5. On success:
++
++   * remove the deleted course from the existing courses state
++   * do not reload the entire browser page
++   * close the confirmation dialog
++
++6. On failure:
++
++   * keep the course visible
++   * show a concise visible error message
++   * do not use `alert()`
++
++7. If the error indicates HTTP 401 or 403:
++
++   * remove `access_token` from localStorage
++   * redirect to `/login`
++
++Important:
++
++* Do not expose the course UUID in the UI.
++* Do not modify `fetchCourses`.
++* Do not modify unrelated pages.
++* Do not modify dashboard/auth code.
++* Do not make extra GET requests after successful deletion unless the current Courses page architecture makes that clearly simpler than updating existing state.
++* Prefer updating the current courses state with:
++  `setCourses(current => current.filter(course => course.id !== deletedCourseId))`
++
++After implementing:
++
++* list every file changed
++* explain the delete flow
++* explain how the course disappears from the UI after successful deletion
++* give exact manual testing steps
++* stop
++
+
+# 2026-08-19 16:44:22.416770
++clear
+
+# 2026-08-19 16:44:38.564512
++D
+
+# 2026-08-19 16:44:41.561635
++Update the existing Courses page to allow the user to delete a course with confirmation.
++
++Use:
++
++* `frontend/src/app/courses/page.js`
++* `frontend/src/lib/courses-api.js`
++* installed shadcn `AlertDialog`
++* Lucide icons
++
++Existing API helper:
++
++`deleteCourse(courseId, token)`
++
++Existing delete endpoint:
++
++`DELETE /api/v1/courses/{course_id}`
++
++Requirements:
++
++* JavaScript only.
++* Do not modify backend files.
++* Preserve the existing Courses page layout and styling.
++* Do not create a new API route.
++* Do not use `window.confirm()`.
++
++For each course in the existing course view:
++
++1. Add a Delete action using a Lucide trash icon where appropriate.
++
++2. Clicking Delete must open a shadcn `AlertDialog`.
++
++3. The dialog should show:
++
++Title:
++
++`Delete course?`
++
++Description:
++
++`This will permanently delete <course name>. This action cannot be undone.`
++
++Do not claim that assignments, materials, or other related records are deleted unless that behavior is already confirmed by the backend.
++
++4. Provide two actions:
++
++* Cancel
++* Delete course
++
++5. Style `Delete course` as destructive.
++
++On confirmed deletion:
++
++1. Read:
++
++`localStorage.getItem("access_token")`
++
++2. If there is no token:
++
++   * redirect to `/login`
++   * do not send the DELETE request
++
++3. Call:
++
++`deleteCourse(course.id, token)`
++
++4. While the request is running:
++
++   * disable the destructive confirmation button
++   * show text such as `Deleting...`
++
++5. On success:
++
++   * remove the deleted course from the existing courses state
++   * do not reload the entire browser page
++   * close the confirmation dialog
++
++6. On failure:
++
++   * keep the course visible
++   * show a concise visible error message
++   * do not use `alert()`
++
++7. If the error indicates HTTP 401 or 403:
++
++   * remove `access_token` from localStorage
++   * redirect to `/login`
++
++Important:
++
++* Do not expose the course UUID in the UI.
++* Do not modify `fetchCourses`.
++* Do not modify unrelated pages.
++* Do not modify dashboard/auth code.
++* Do not make extra GET requests after successful deletion unless the current Courses page architecture makes that clearly simpler than updating existing state.
++* Prefer updating the current courses state with:
++  `setCourses(current => current.filter(course => course.id !== deletedCourseId))`
++
++After implementing:
++
++* list every file changed
++* explain the delete flow
++* explain how the course disappears from the UI after successful deletion
++* give exact manual testing steps
++* stop
++
+
+# 2026-08-19 20:39:52.075422
++D
+
+# 2026-08-19 20:43:41.762687
++You are working on the Academic Assistant frontend in:
++
++`~/repos/learning/frontend`
++
++Current stack:
++
++* Next.js 16
++* JavaScript only
++* App Router
++* Tailwind CSS 4
++* shadcn/ui
++* Lucide icons
++* `next-themes@0.4.6` is already installed
++
++Important existing theme setup:
++
++* `src/app/globals.css` already defines shadcn CSS variables for both:
++
++  * `:root` light theme
++  * `.dark` dark theme
++* It also has:
++  `@custom-variant dark (&:is(.dark *));`
++* Do NOT replace the shadcn variable system with custom hardcoded colors.
++* Do NOT manually restyle every shadcn component.
++* Do NOT modify the FastAPI backend.
++* Do NOT add any backend theme preference.
++* Keep everything in JavaScript, not TypeScript.
++
++Goal:
++Implement proper light/dark/system theme support using `next-themes`.
++
++Before editing:
++
++1. Inspect:
++
++   * `src/app/layout.js`
++   * `src/app/globals.css`
++   * `src/app/login/page.js`
++   * `src/app/dashboard/page.js`
++   * `src/app/courses/page.js`
++   * existing files under `src/components`
++2. Confirm there is not already a ThemeProvider or theme toggle.
++3. Preserve the existing UI design.
++
++Implementation requirements:
++
++1. Create a reusable theme provider, preferably at:
++   `src/components/providers/theme-provider.jsx`
++
++   It should:
++
++   * be a client component
++   * wrap `next-themes`
++   * allow props to pass through
++
++2. Update `src/app/layout.js` so the app is wrapped with the ThemeProvider.
++
++   Configure it with:
++
++   * `attribute="class"`
++   * `defaultTheme="system"`
++   * `enableSystem`
++   * `disableTransitionOnChange`
++
++3. Add `suppressHydrationWarning` to the root `<html>` element to avoid expected hydration warnings caused by theme class changes.
++
++4. Create a reusable theme toggle component, preferably:
++   `src/components/theme-toggle.jsx`
++
++5. The toggle should use:
++
++   * `useTheme` from `next-themes`
++   * Lucide icons
++   * existing shadcn Button and, if already available, an appropriate menu/dropdown component
++
++6. Support all three theme options:
++
++   * Light
++   * Dark
++   * System
++
++7. If a dropdown/menu component is not currently installed, do NOT install a large set of new components automatically.
++   Either:
++
++   * use a compact Button-based implementation with a simple accessible UI, or
++   * clearly tell me which single shadcn component needs to be installed before continuing.
++
++8. Handle mounted state correctly so the icon/theme UI does not cause hydration mismatch.
++
++9. Place the theme toggle somewhere sensible in the existing UI without redesigning the application.
++   Since there is currently no shared authenticated navigation component, prefer a minimally invasive location.
++   Do not duplicate theme state logic across multiple pages.
++
++10. Keep the current Dashboard, Login, Courses, and shadcn styling intact.
++    Use semantic classes like:
++
++    * `bg-background`
++    * `text-foreground`
++    * `text-muted-foreground`
++    * `bg-card`
++    * `border-border`
++      rather than introducing lots of hardcoded `zinc`, `black`, or `white` colors.
++
++11. Review existing hardcoded theme-sensitive classes in:
++
++    * login page
++    * dashboard page
++    * courses page
++
++    Only change the ones that are necessary for consistent theme behavior.
++
++12. Do not change authentication logic, API calls, routing behavior, or backend code.
++
++After implementation:
++
++* Show me every file you changed.
++* Briefly explain each change.
++* Give me exact commands to test it.
++* Tell me how to verify:
++
++  * light mode
++  * dark mode
++  * system mode
++  * persistence after refresh
++  * no hydration errors
++  * Dashboard/Login/Courses still render correctly
++
++Do not make unrelated cleanup changes.
++Do not convert files to TypeScript.
++Do not modify the backend.
++
+
+# 2026-08-19 21:01:21.828776
++D
+
+# 2026-08-19 21:01:40.756309
++Read AGENTS.md and PROJECT_SPEC.md before making changes.
++
++Modify the existing Academic Assistant dashboard.
++
++IMPORTANT:
++I like the current dashboard design. Do NOT redesign it, restructure it, or change its overall appearance. Only make the changes described below.
++
++GOAL
++
++Update these dashboard sections:
++
++- Upcoming Work
++- Next Exam
++- Next Project
++
++I want each section that contains a list of items to display approximately 5 items at a time.
++
++If there are 5 or fewer items:
++- Display all items normally.
++- Do not show an unnecessary scrollbar.
++
++If there are more than 5 items:
++- Keep the section approximately the height of 5 items.
++- Make the list vertically scrollable.
++- The user must be able to scroll through ALL remaining items.
++- Do not discard items after the fifth item.
++
++For example, if Upcoming Work contains 12 assignments, the first 5 should fit in the visible area and the user should be able to scroll inside the section to see assignments 6 through 12.
++
++Do NOT simply use:
++
++upcoming.slice(0, 5)
++
++because that would hide the remaining items.
++
++Render the complete collection inside a height-constrained scrollable container.
++
++IMPLEMENTATION
++
++Prefer simple Tailwind/CSS such as:
++
++overflow-y-auto
++
++with an appropriate max-height based on the existing item height.
++
++If the project already uses the shadcn ScrollArea component, it is fine to use it.
++
++Do not install a new dependency solely for this feature.
++
++Scrolling should work with:
++- mouse wheel
++- trackpad
++- touch devices
++
++Preserve:
++- current cards
++- current typography
++- current spacing as much as possible
++- current colors
++- current responsive layout
++- current dark mode behavior
++- current empty states
++
++BACKEND / DATA CHECK
++
++Before modifying the components, inspect:
++
++../backend/app/api/v1/dashboard.py
++../backend/app/schemas/dashboard.py
++
++Also inspect the existing frontend dashboard API code and types.
++
++Determine the actual data structures for:
++
++- upcoming
++- next_exam
++- next_project
++
++Do not invent API fields.
++
++If `upcoming` is a list:
++implement the 5-visible-item scrolling behavior.
++
++If `next_exam` or `next_project` are currently single objects rather than lists:
++- leave their existing single-item behavior unchanged
++- do NOT change the backend
++- do NOT manufacture fake lists
++- mention this limitation in your summary
++
++If they are already lists:
++apply the same 5-visible-item scrolling behavior to them.
++
++IMPORTANT CONSTRAINTS
++
++Do NOT:
++- redesign the dashboard
++- change unrelated components
++- modify other pages
++- modify the FastAPI backend
++- change API contracts
++- add pagination
++- add a Load More button
++- add fake data
++- add unnecessary dependencies
++- truncate collections to only 5 items
++
++Only the visible HEIGHT should be limited to approximately 5 items. The complete collection should remain accessible through scrolling.
++
++VALIDATION
++
++After making the change:
++
++1. Run npm run lint.
++2. Run the existing build/type validation.
++3. Fix any errors caused by your changes.
++4. Verify the UI behavior for:
++   - 0 items
++   - 1 item
++   - 5 items
++   - 6 items
++   - many items
++
++At the end, summarize:
++- files changed
++- how scrolling was implemented
++- which dashboard sections are scrollable
++- whether next_exam and next_project are single objects or lists in the current backend API
++- any limitations caused by the current API
++
++Only implement this dashboard change.
+
+# 2026-08-19 21:04:33.886727
++make the ncessary chaneges
+
+# 2026-08-19 21:10:42.683162
++The Upcoming Work scrolling change looks good.
++
++Now finish the remaining part of the task.
++
++Add the associated course name to the existing Next Exam and Next Project cards.
++
++Do not redesign the cards.
++
++The dashboard already has a getCourseName(courseId) helper that is being used for Upcoming Work. Reuse that existing helper if appropriate.
++
++For Next Exam:
++- determine the course name using next_exam.course_id
++- display the course name as secondary muted text near/below the exam title
++- preserve the existing exam type/date/points information
++
++For Next Project:
++- determine the course name using next_project.course_id
++- display the course name as secondary muted text near/below the project title
++- preserve the existing project type/date/points information
++
++Do not:
++- modify the backend
++- add API calls if the existing course data and getCourseName helper are sufficient
++- redesign the dashboard
++- change unrelated components
++
++After making the changes, run npm run lint and fix any errors caused by the changes.
+
+# 2026-08-19 21:14:42.049205
++Read AGENTS.md and PROJECT_SPEC.md before making changes.
++
++I like the current Academic Assistant dashboard layout and design. Do NOT redesign or restructure the dashboard.
++
++I want to improve the dashboard typography.
++
++## Goals
++
++1. Increase the overall text sizes slightly.
++2. Make important text and headings bolder/more prominent.
++3. Change the application font to a softer, friendlier modern font.
++4. Preserve the existing clean academic/productivity aesthetic.
++
++## Font
++
++Change the primary application font to **DM Sans**.
++
++Use the recommended Next.js font-loading approach with `next/font/google`.
++
++Do not load the font using an external CSS `@import`.
++
++If the application already has a centralized font configuration in the root layout, update that implementation rather than adding dashboard-specific font loading.
++
++The font should apply consistently across the application, not just to one individual dashboard component.
++
++Use appropriate available font weights, including enough support for:
++
++* normal body text
++* medium text
++* semibold text
++* bold headings
++
++Do not add an unnecessary font dependency.
++
++## Dashboard Typography
++
++Increase typography sizes moderately.
++
++Do NOT make everything dramatically larger.
++
++The goal is improved readability and visual hierarchy.
++
++### Main Dashboard Heading
++
++Make the main "Dashboard" heading more prominent.
++
++Target approximately:
++
++* text-3xl on smaller screens
++* text-4xl on larger screens
++* font-bold
++
++Keep responsive behavior.
++
++### Dashboard Section Titles
++
++Examples:
++
++* Upcoming Work
++* Next Exam
++* Next Project
++* other existing dashboard section headings
++
++Make these slightly larger and bolder.
++
++Target approximately:
++
++* text-lg or text-xl
++* font-semibold or font-bold
++
++Choose whichever fits the existing layout best.
++
++### Assignment / Exam / Project Titles
++
++Make item titles slightly larger and more prominent.
++
++For example:
++
++* upcoming assignment titles
++* exam titles
++* project titles
++
++Target approximately:
++
++* text-base or text-lg
++* font-semibold
++
++They should visually stand out from metadata.
++
++### Course Names
++
++Course names should remain secondary information but should be easier to read.
++
++Increase them slightly if necessary.
++
++Use approximately:
++
++* text-sm or text-base
++* font-medium
++* text-muted-foreground
++
++The course name should remain visually subordinate to the assignment/exam/project title.
++
++### Metadata
++
++Examples:
++
++* assignment type
++* due dates
++* counts
++* other supporting information
++
++Keep metadata visually secondary.
++
++Do not make every piece of text bold.
++
++Maintain a clear hierarchy:
++
++Page heading
++↓
++Section heading
++↓
++Assignment / Exam / Project title
++↓
++Course name
++↓
++Metadata
++
++## Cards
++
++Do not redesign the cards.
++
++Preserve:
++
++* existing card layout
++* borders
++* spacing
++* colors
++* scrolling behavior
++* dashboard grid
++* responsive behavior
++* dark mode
++
++If slightly increasing padding or vertical spacing is necessary to accommodate the larger typography cleanly, make only small adjustments.
++
++Do not substantially increase card sizes.
++
++## Upcoming Work Scrolling
++
++Preserve the existing scrollable Upcoming Work behavior.
++
++The section should still show approximately 5 items before requiring internal scrolling.
++
++Because text sizes are increasing, verify that the existing max-height still provides a good approximately-five-item visible area.
++
++Adjust the max-height only if necessary.
++
++Do NOT truncate the upcoming list.
++
++All upcoming items must remain accessible through scrolling.
++
++## Responsive Design
++
++Make sure the typography scales appropriately.
++
++Avoid oversized text on mobile.
++
++The dashboard should remain readable on:
++
++* desktop
++* laptop
++* tablet
++* mobile
++
++## Dark Mode
++
++Verify that DM Sans and the typography changes work correctly in both light and dark mode.
++
++Do not change the existing color scheme as part of this task.
++
++## Important Constraints
++
++Do NOT:
++
++* redesign the dashboard
++* change the dashboard information architecture
++* modify backend code
++* modify API calls
++* change API contracts
++* remove existing functionality
++* remove the Upcoming Work scrolling behavior
++* add unnecessary dependencies
++* add decorative fonts
++* use an overly playful font
++* make every piece of text bold
++* modify unrelated pages unnecessarily
++
++The goal is a typography refinement, not a dashboard redesign.
++
++## Validation
++
++After making the changes:
++
++1. Run npm run lint.
++2. Run the existing build/type validation.
++3. Fix errors caused by the changes.
++4. Verify the dashboard visually remains responsive.
++5. Verify the Upcoming Work scroll behavior still works.
++6. Verify light and dark mode typography.
++
++At the end summarize:
++
++* files changed
++* how DM Sans was configured
++* typography sizes/weights changed
++* whether the font applies globally or only to the dashboard
++* whether Upcoming Work max-height needed adjustment
++* validation commands run
++
++Only implement the typography/font changes described above.
++
+
+# 2026-08-19 21:31:04.936232
++N
+
+# 2026-08-19 21:31:12.724916
++Do not modify the existing Tailwind/shadcn @custom-variant syntax.
++
++The current DM Sans implementation is incomplete.
++
++Fix the font configuration correctly using next/font/google.
++
++Requirements:
++
++1. In frontend/src/app/layout.js:
++   - import DM_Sans from next/font/google
++   - configure it with latin subset
++   - include weights 400, 500, 600, and 700 if supported
++   - set:
++     variable: "--font-dm-sans"
++   - add dmSans.variable to the root html className
++
++2. Keep GeistMono if it is still needed for the mono font.
++3. GeistSans does not need to remain the primary sans font if DM Sans is replacing it.
++
++4. In frontend/src/app/globals.css:
++   configure Tailwind's sans font to use the DM Sans variable.
++
++Use:
++
++--font-sans: var(--font-dm-sans);
++
++Do NOT use:
++
++--font-sans: var(--font-dm-sans), var(--font-sans);
++
++because that is self-referential.
++
++5. Keep this existing line unchanged:
++
++@custom-variant dark (&:is(.dark *));
++
++It is valid Tailwind v4/shadcn syntax.
++
++6. Do not attempt to "fix" valid Tailwind v4 directives because an external parser does not understand them.
++
++7. Preserve the dashboard typography changes already made.
++
++8. After the correction, run the actual project commands from frontend:
++   npm run lint
++   npm run build
++
++Use those command results as the source of truth rather than attempting to infer CSS syntax errors from Aider's parser.
++
++Do not make unrelated changes.
+
+# 2026-08-19 21:53:52.622384
++N
+
+# 2026-08-19 21:58:13.302489
++D
+
+# 2026-08-19 21:58:17.457263
++Read AGENTS.md and PROJECT_SPEC.md before making changes.
++
++Modify the Academic Assistant backend dashboard API so the dashboard can return ALL upcoming exams and ALL upcoming projects, not just the single next exam and single next project.
++
++IMPORTANT:
++Do not remove or break the existing next_exam and next_project fields yet. Keep them for backward compatibility.
++
++GOAL
++
++Add two new dashboard response fields:
++
++- upcoming_exams
++- upcoming_projects
++
++Both should be lists of assignment objects using the same assignment response schema already used by the dashboard.
++
++BACKEND BEHAVIOR
++
++For upcoming_exams:
++
++Return all future assignments for the authenticated user where assignment_type represents an exam.
++
++Requirements:
++- only assignments owned by the authenticated user through their courses
++- due_at must be in the future relative to the same "now" logic already used by the dashboard
++- sort ascending by due_at so the next exam is first
++
++For upcoming_projects:
++
++Return all future assignments for the authenticated user where assignment_type represents a project.
++
++Requirements:
++- only assignments owned by the authenticated user through their courses
++- due_at must be in the future
++- sort ascending by due_at so the next project is first
++
++Before writing the query, inspect the existing Assignment model/schema and the current dashboard implementation to confirm the actual assignment_type values used for exams and projects.
++
++Do not invent new enum/type values.
++
++QUERY DESIGN
++
++Avoid doing unnecessary duplicate queries.
++
++Prefer this pattern where practical:
++
++1. Query all upcoming exams into upcoming_exams.
++2. Set:
++   next_exam = upcoming_exams[0] if upcoming_exams else None
++
++3. Query all upcoming projects into upcoming_projects.
++4. Set:
++   next_project = upcoming_projects[0] if upcoming_projects else None
++
++This should replace separate `.first()` queries if that reduces duplicate work cleanly.
++
++SCHEMA CHANGES
++
++Update backend/app/schemas/dashboard.py.
++
++Add:
++
++upcoming_exams: list[AssignmentResponse]
++upcoming_projects: list[AssignmentResponse]
++
++Use the existing assignment schema already used by the dashboard.
++
++Do not create a duplicate assignment schema unless absolutely necessary.
++
++Keep these existing fields:
++
++next_exam
++next_project
++
++unless the current schema uses different exact names/types.
++
++RESPONSE
++
++Update the dashboard response construction to include:
++
++upcoming_exams=upcoming_exams
++upcoming_projects=upcoming_projects
++
++Preserve all existing dashboard fields and behavior.
++
++COURSE NAME
++
++Do not change the backend response to embed course_name in each assignment unless the existing dashboard schema already does so.
++
++The frontend can continue resolving course_id using its existing course data.
++
++SECURITY
++
++Preserve the existing authenticated-user ownership boundaries.
++
++Do not return assignments belonging to other users.
++
++CONSTRAINTS
++
++Do NOT:
++- modify unrelated endpoints
++- change assignment extraction logic
++- change database models
++- create migrations
++- change API paths
++- remove next_exam
++- remove next_project
++- change unrelated dashboard fields
++- add unnecessary dependencies
++
++VALIDATION
++
++After making the changes:
++
++1. Run the relevant backend import/type validation already used by this project.
++2. If practical, run an existing dashboard test or start-up validation.
++3. Verify that DashboardResponse includes:
++   - upcoming_exams
++   - upcoming_projects
++4. Verify next_exam is the first upcoming exam or None.
++5. Verify next_project is the first upcoming project or None.
++6. Verify the lists are sorted by due_at ascending.
++7. Verify user ownership filtering remains intact.
++
++At the end summarize:
++- files changed
++- query changes
++- schema changes
++- actual assignment_type values used
++- whether duplicate next_exam/next_project queries were removed
++- validation commands run
++
++Only implement the backend dashboard changes described above.
+
+# 2026-08-19 22:02:33.754743
++The new upcoming_exams and upcoming_projects fields and queries look correct.
++
++Before finishing, make these cleanup changes.
++
++1. Remove the redundant query_next_exam and query_next_project calls.
++
++The backend now already has:
++
++upcoming_exams
++upcoming_projects
++
++Derive the backward-compatible singular fields from those lists:
++
++next_exam = upcoming_exams[0] if upcoming_exams else None
++next_project = upcoming_projects[0] if upcoming_projects else None
++
++Then return:
++
++"next_exam": next_exam
++"next_project": next_project
++
++Do not query the database again for these values.
++
++2. Since query_next_exam and query_next_project are no longer used by dashboard.py, remove them from the dashboard.py import list.
++
++Do NOT delete the helper functions themselves from assignments.py because other code may still use them.
++
++3. Do not modify backend/app/schemas/assignment.py as part of this task.
++
++If that file has any accidental or no-op edits from this session, restore it to its original state.
++
++The AssignmentResponse schema should remain unchanged.
++
++4. Keep these DashboardResponse fields:
++
++upcoming_exams: list[AssignmentResponse]
++upcoming_projects: list[AssignmentResponse]
++
++5. Preserve the existing authenticated-user ownership filtering and due_at ascending ordering.
++
++6. Do not change unrelated dashboard behavior.
++
++After making the cleanup changes, run a backend import validation and show me the final relevant diff.
+
+# 2026-08-19 22:11:24.990472
++Do not change the imports anymore. The import cleanup is already applied.
++
++Only modify the body of get_dashboard().
++
++After upcoming_exams and upcoming_projects are created, add:
++
++next_exam = upcoming_exams[0] if upcoming_exams else None
++next_project = upcoming_projects[0] if upcoming_projects else None
++
++Then update the return dictionary so:
++
++"next_exam": next_exam,
++"next_project": next_project,
++
++Replace the existing query_next_exam(...) and query_next_project(...) calls.
++
++Do not modify any other files.
++Do not change backend/app/schemas/assignment.py.
++Do not change backend/app/api/v1/assignments.py.
++Do not re-edit the import line.
++
++First read the current exact contents of backend/app/api/v1/dashboard.py and make the smallest possible edit.
+
+# 2026-08-19 22:24:21.542921
++D
+
+# 2026-08-19 22:24:23.178055
++Only fix these two remaining backend dashboard issues.
++
++1. In backend/app/schemas/dashboard.py, update DashboardResponse so it contains:
++
++upcoming_exams: list[AssignmentResponse]
++upcoming_projects: list[AssignmentResponse]
++
++Place them immediately after next_exam and next_project.
++
++Do not remove or modify any existing DashboardResponse fields.
++
++2. In backend/app/api/v1/dashboard.py, check the current call to query_upcoming_assignments.
++
++It currently uses limit=5.
++
++I want the dashboard API to return all upcoming assignments because the frontend controls the visible 5-item height and scrolling.
++
++Inspect the read-only implementation of query_upcoming_assignments in backend/app/api/v1/assignments.py and use the correct supported way to request all items.
++
++If limit is optional, remove the limit argument.
++
++Do not use an arbitrary large limit.
++
++Preserve the existing upcoming_exams, upcoming_projects, next_exam, and next_project logic.
++
++Do not change anything else.
++
++After editing, stop and summarize the exact changes.
+
+# 2026-08-19 22:30:54.596478
++Read AGENTS.md and PROJECT_SPEC.md before making changes.
++
++The backend dashboard API is now working and returns:
++
++- upcoming
++- next_exam
++- next_project
++- upcoming_exams
++- upcoming_projects
++
++The `upcoming`, `upcoming_exams`, and `upcoming_projects` fields are lists.
++
++Update the existing dashboard frontend to use the new list fields.
++
++IMPORTANT:
++I like the current dashboard design. Do not redesign it.
++
++GOALS
++
++1. Keep Upcoming Work as a scrollable list showing approximately 5 items at a time.
++
++2. Replace the current single Next Exam card content with an Upcoming Exams list using:
++
++upcoming_exams
++
++3. Replace the current single Next Project card content with an Upcoming Projects list using:
++
++upcoming_projects
++
++4. Each list should show approximately 5 items before requiring vertical scrolling.
++
++5. Render ALL items. Do not truncate the arrays.
++
++UPCOMING WORK
++
++Continue using:
++
++upcoming
++
++Preserve the existing scrollable behavior.
++
++The backend now returns all upcoming assignments, so make sure the frontend does not call:
++
++.slice(0, 5)
++
++or otherwise discard items.
++
++UPCOMING EXAMS
++
++Change the section heading:
++
++Next Exam
++
++to:
++
++Upcoming Exams
++
++Use:
++
++dashboard.upcoming_exams
++
++or the appropriate destructured value from the existing dashboard data.
++
++Render every exam.
++
++Each exam should display:
++
++- title
++- associated course name
++- assignment type if currently useful
++- due date
++
++Use the existing:
++
++getCourseName(exam.course_id)
++
++helper.
++
++If there are no exams, display:
++
++No upcoming exams
++
++Make the list vertically scrollable when it exceeds approximately 5 visible items.
++
++UPCOMING PROJECTS
++
++Change the section heading:
++
++Next Project
++
++to:
++
++Upcoming Projects
++
++Use:
++
++dashboard.upcoming_projects
++
++or the appropriate destructured value.
++
++Render every project.
++
++Each project should display:
++
++- title
++- associated course name
++- assignment type if currently useful
++- due date
++
++Use:
++
++getCourseName(project.course_id)
++
++If there are no projects, display:
++
++No upcoming projects
++
++Make the list vertically scrollable when it exceeds approximately 5 visible items.
++
++SCROLLING
++
++Use the same general scrolling pattern already implemented for Upcoming Work.
++
++Prefer simple Tailwind CSS:
++
++overflow-y-auto
++
++with an appropriate max-height.
++
++Do not install additional dependencies.
++
++The first approximately 5 items should fit in the visible area, with additional items accessible by scrolling.
++
++Do not use pagination.
++Do not use Load More.
++Do not truncate the arrays.
++
++BACKWARD COMPATIBILITY
++
++The backend still returns next_exam and next_project, but the dashboard UI should now primarily use:
++
++upcoming_exams
++upcoming_projects
++
++Do not render duplicate sections for the singular and list fields.
++
++It is okay to stop using next_exam and next_project on this page.
++
++DESIGN
++
++Preserve:
++
++- existing card layout
++- existing typography
++- DM Sans font setup
++- current spacing
++- dark mode
++- responsive layout
++- current course-name styling
++- current date badges
++
++Do not redesign unrelated dashboard sections.
++
++VALIDATION
++
++After making changes:
++
++1. Run npm run lint.
++2. Run the existing build validation.
++3. Fix errors caused by these changes.
++
++Verify behavior for:
++
++- 0 exams/projects
++- 1 exam/project
++- exactly 5
++- more than 5
++- many items
++
++Verify:
++- all items remain accessible by scrolling
++- course names display correctly
++- Upcoming Work still scrolls
++- dark mode still works
++- mobile layout still works
++
++At the end summarize:
++- files changed
++- how upcoming_exams is used
++- how upcoming_projects is used
++- how scrolling works
++- whether next_exam/next_project are still used anywhere on the dashboard
++
++Only implement these frontend dashboard changes.
+
+# 2026-08-19 22:31:06.649264
++D
+
+# 2026-08-19 22:31:08.146170
++Read AGENTS.md and PROJECT_SPEC.md before making changes.
++
++The backend dashboard API is now working and returns:
++
++- upcoming
++- next_exam
++- next_project
++- upcoming_exams
++- upcoming_projects
++
++The `upcoming`, `upcoming_exams`, and `upcoming_projects` fields are lists.
++
++Update the existing dashboard frontend to use the new list fields.
++
++IMPORTANT:
++I like the current dashboard design. Do not redesign it.
++
++GOALS
++
++1. Keep Upcoming Work as a scrollable list showing approximately 5 items at a time.
++
++2. Replace the current single Next Exam card content with an Upcoming Exams list using:
++
++upcoming_exams
++
++3. Replace the current single Next Project card content with an Upcoming Projects list using:
++
++upcoming_projects
++
++4. Each list should show approximately 5 items before requiring vertical scrolling.
++
++5. Render ALL items. Do not truncate the arrays.
++
++UPCOMING WORK
++
++Continue using:
++
++upcoming
++
++Preserve the existing scrollable behavior.
++
++The backend now returns all upcoming assignments, so make sure the frontend does not call:
++
++.slice(0, 5)
++
++or otherwise discard items.
++
++UPCOMING EXAMS
++
++Change the section heading:
++
++Next Exam
++
++to:
++
++Upcoming Exams
++
++Use:
++
++dashboard.upcoming_exams
++
++or the appropriate destructured value from the existing dashboard data.
++
++Render every exam.
++
++Each exam should display:
++
++- title
++- associated course name
++- assignment type if currently useful
++- due date
++
++Use the existing:
++
++getCourseName(exam.course_id)
++
++helper.
++
++If there are no exams, display:
++
++No upcoming exams
++
++Make the list vertically scrollable when it exceeds approximately 5 visible items.
++
++UPCOMING PROJECTS
++
++Change the section heading:
++
++Next Project
++
++to:
++
++Upcoming Projects
++
++Use:
++
++dashboard.upcoming_projects
++
++or the appropriate destructured value.
++
++Render every project.
++
++Each project should display:
++
++- title
++- associated course name
++- assignment type if currently useful
++- due date
++
++Use:
++
++getCourseName(project.course_id)
++
++If there are no projects, display:
++
++No upcoming projects
++
++Make the list vertically scrollable when it exceeds approximately 5 visible items.
++
++SCROLLING
++
++Use the same general scrolling pattern already implemented for Upcoming Work.
++
++Prefer simple Tailwind CSS:
++
++overflow-y-auto
++
++with an appropriate max-height.
++
++Do not install additional dependencies.
++
++The first approximately 5 items should fit in the visible area, with additional items accessible by scrolling.
++
++Do not use pagination.
++Do not use Load More.
++Do not truncate the arrays.
++
++BACKWARD COMPATIBILITY
++
++The backend still returns next_exam and next_project, but the dashboard UI should now primarily use:
++
++upcoming_exams
++upcoming_projects
++
++Do not render duplicate sections for the singular and list fields.
++
++It is okay to stop using next_exam and next_project on this page.
++
++DESIGN
++
++Preserve:
++
++- existing card layout
++- existing typography
++- DM Sans font setup
++- current spacing
++- dark mode
++- responsive layout
++- current course-name styling
++- current date badges
++
++Do not redesign unrelated dashboard sections.
++
++VALIDATION
++
++After making changes:
++
++1. Run npm run lint.
++2. Run the existing build validation.
++3. Fix errors caused by these changes.
++
++Verify behavior for:
++
++- 0 exams/projects
++- 1 exam/project
++- exactly 5
++- more than 5
++- many items
++
++Verify:
++- all items remain accessible by scrolling
++- course names display correctly
++- Upcoming Work still scrolls
++- dark mode still works
++- mobile layout still works
++
++At the end summarize:
++- files changed
++- how upcoming_exams is used
++- how upcoming_projects is used
++- how scrolling works
++- whether next_exam/next_project are still used anywhere on the dashboard
++
++Only implement these frontend dashboard changes.
+
+# 2026-08-19 22:38:24.768666
++The list conversion is correct.
++
++Make one final adjustment only:
++
++Change the max-height for both Upcoming Exams and Upcoming Projects from:
++
++max-h-[150px]
++
++to the same approximate 5-item height used by Upcoming Work:
++
++max-h-[320px]
++
++Keep:
++
++overflow-y-auto
++
++Do not change any other layout, styling, API logic, or dashboard behavior.
++
++After that, run npm run lint.

@@ -1,5 +1,7 @@
 "use client";
 
+"use client";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CalendarIcon, ClockIcon, TargetIcon } from "lucide-react";
@@ -7,6 +9,7 @@ import { useEffect, useState } from "react";
 import { fetchDashboard } from "@/lib/dashboard-api";
 import { useRouter } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState(null);
@@ -42,14 +45,24 @@ export default function DashboardPage() {
     fetchDashboardData();
   }, [router]);
 
+  // Helper function to get course name by ID
+  const getCourseName = (courseId) => {
+    if (!course_summaries) return null;
+    const summary = course_summaries.find(s => s.course_id === courseId);
+    return summary ? summary.course_name : null;
+  };
+
   if (isLoading) {
     return (
       <div className="flex-1 p-6">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground mt-2">
-            Your academic overview and upcoming work
-          </p>
+        <div className="mb-8 flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+            <p className="text-muted-foreground mt-2">
+              Your academic overview and upcoming work
+            </p>
+          </div>
+          <ThemeToggle />
         </div>
 
         {/* Summary Metrics Skeleton */}
@@ -93,7 +106,7 @@ export default function DashboardPage() {
             </Card>
           </div>
 
-          {/* Next Exam and Next Project Skeleton */}
+          {/* Upcoming Exams and Upcoming Projects Skeleton */}
           <div>
             <Card className="mb-6">
               <CardHeader>
@@ -102,13 +115,15 @@ export default function DashboardPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center justify-between p-3 border rounded-lg mb-3">
-                  <div>
-                    <Skeleton className="h-4 w-20 mb-2" />
-                    <Skeleton className="h-3 w-16" />
+                {[1, 2, 3].map((item) => (
+                  <div key={item} className="flex items-center justify-between p-3 border rounded-lg mb-3">
+                    <div>
+                      <Skeleton className="h-4 w-20 mb-2" />
+                      <Skeleton className="h-3 w-16" />
+                    </div>
+                    <Skeleton className="h-6 w-16" />
                   </div>
-                  <Skeleton className="h-6 w-16" />
-                </div>
+                ))}
               </CardContent>
             </Card>
 
@@ -119,13 +134,15 @@ export default function DashboardPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <Skeleton className="h-4 w-20 mb-2" />
-                    <Skeleton className="h-3 w-16" />
+                {[1, 2, 3].map((item) => (
+                  <div key={item} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <Skeleton className="h-4 w-20 mb-2" />
+                      <Skeleton className="h-3 w-16" />
+                    </div>
+                    <Skeleton className="h-6 w-16" />
                   </div>
-                  <Skeleton className="h-6 w-16" />
-                </div>
+                ))}
               </CardContent>
             </Card>
           </div>
@@ -180,11 +197,14 @@ export default function DashboardPage() {
   if (error) {
     return (
       <div className="flex-1 p-6">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground mt-2">
-            Your academic overview and upcoming work
-          </p>
+        <div className="mb-8 flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+            <p className="text-muted-foreground mt-2">
+              Your academic overview and upcoming work
+            </p>
+          </div>
+          <ThemeToggle />
         </div>
         <div className="text-destructive">{error}</div>
       </div>
@@ -199,6 +219,8 @@ export default function DashboardPage() {
     upcoming, 
     next_exam, 
     next_project, 
+    upcoming_exams,
+    upcoming_projects,
     counts, 
     workload_next_7_days, 
     course_summaries 
@@ -206,11 +228,14 @@ export default function DashboardPage() {
 
   return (
     <div className="flex-1 p-6">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground mt-2">
-          Your academic overview and upcoming work
-        </p>
+      <div className="mb-8 flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground mt-2">
+            Your academic overview and upcoming work
+          </p>
+        </div>
+        <ThemeToggle />
       </div>
 
       {/* Summary Metrics */}
@@ -257,23 +282,34 @@ export default function DashboardPage() {
               <CardTitle>Upcoming Work</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
+              <div className="space-y-4 max-h-[320px] overflow-y-auto">
                 {upcoming && upcoming.length > 0 ? (
-                  upcoming.map((assignment) => (
-                    <div key={assignment.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div>
-                        <h3 className="font-medium">{assignment.title}</h3>
-                        {assignment.assignment_type && (
-                          <p className="text-sm text-muted-foreground">
-                            {assignment.assignment_type}
-                          </p>
-                        )}
+                  upcoming.map((assignment) => {
+                    const courseName = getCourseName(assignment.course_id);
+                    return (
+                      <div key={assignment.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div>
+                          <h3 className="font-medium">{assignment.title}</h3>
+                          {courseName && assignment.assignment_type ? (
+                            <p className="text-sm text-muted-foreground">
+                              {courseName} · {assignment.assignment_type}
+                            </p>
+                          ) : courseName ? (
+                            <p className="text-sm text-muted-foreground">
+                              {courseName}
+                            </p>
+                          ) : assignment.assignment_type ? (
+                            <p className="text-sm text-muted-foreground">
+                              {assignment.assignment_type}
+                            </p>
+                          ) : null}
+                        </div>
+                        <Badge variant="secondary">
+                          {assignment.due_at ? new Date(assignment.due_at).toLocaleDateString() : 'No due date'}
+                        </Badge>
                       </div>
-                      <Badge variant="secondary">
-                        {assignment.due_at ? new Date(assignment.due_at).toLocaleDateString() : 'No due date'}
-                      </Badge>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <div className="text-center py-4 text-muted-foreground">
                     No upcoming assignments
@@ -284,59 +320,89 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        {/* Next Exam and Next Project */}
+        {/* Upcoming Exams and Upcoming Projects */}
         <div>
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle>Next Exam</CardTitle>
+              <CardTitle>Upcoming Exams</CardTitle>
             </CardHeader>
             <CardContent>
-              {next_exam ? (
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <h3 className="font-medium">{next_exam.title}</h3>
-                    {next_exam.assignment_type && (
-                      <p className="text-sm text-muted-foreground">
-                        {next_exam.assignment_type}
-                      </p>
-                    )}
+              <div className="space-y-4 max-h-[320px] overflow-y-auto">
+                {upcoming_exams && upcoming_exams.length > 0 ? (
+                  upcoming_exams.map((exam) => {
+                    const courseName = getCourseName(exam.course_id);
+                    return (
+                      <div key={exam.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div>
+                          <h3 className="font-medium">{exam.title}</h3>
+                          {courseName && exam.assignment_type ? (
+                            <p className="text-sm text-muted-foreground">
+                              {courseName} · {exam.assignment_type}
+                            </p>
+                          ) : courseName ? (
+                            <p className="text-sm text-muted-foreground">
+                              {courseName}
+                            </p>
+                          ) : exam.assignment_type ? (
+                            <p className="text-sm text-muted-foreground">
+                              {exam.assignment_type}
+                            </p>
+                          ) : null}
+                        </div>
+                        <Badge variant="default">
+                          {exam.due_at ? new Date(exam.due_at).toLocaleDateString() : 'No date'}
+                        </Badge>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-4 text-muted-foreground">
+                    No upcoming exams
                   </div>
-                  <Badge variant="default">
-                    {next_exam.due_at ? new Date(next_exam.due_at).toLocaleDateString() : 'No date'}
-                  </Badge>
-                </div>
-              ) : (
-                <div className="text-center py-4 text-muted-foreground">
-                  No upcoming exam
-                </div>
-              )}
+                )}
+              </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>Next Project</CardTitle>
+              <CardTitle>Upcoming Projects</CardTitle>
             </CardHeader>
             <CardContent>
-              {next_project ? (
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <h3 className="font-medium">{next_project.title}</h3>
-                    {next_project.assignment_type && (
-                      <p className="text-sm text-muted-foreground">
-                        {next_project.assignment_type}
-                      </p>
-                    )}
+              <div className="space-y-4 max-h-[320px] overflow-y-auto">
+                {upcoming_projects && upcoming_projects.length > 0 ? (
+                  upcoming_projects.map((project) => {
+                    const courseName = getCourseName(project.course_id);
+                    return (
+                      <div key={project.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div>
+                          <h3 className="font-medium">{project.title}</h3>
+                          {courseName && project.assignment_type ? (
+                            <p className="text-sm text-muted-foreground">
+                              {courseName} · {project.assignment_type}
+                            </p>
+                          ) : courseName ? (
+                            <p className="text-sm text-muted-foreground">
+                              {courseName}
+                            </p>
+                          ) : project.assignment_type ? (
+                            <p className="text-sm text-muted-foreground">
+                              {project.assignment_type}
+                            </p>
+                          ) : null}
+                        </div>
+                        <Badge variant="default">
+                          {project.due_at ? new Date(project.due_at).toLocaleDateString() : 'No date'}
+                        </Badge>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-4 text-muted-foreground">
+                    No upcoming projects
                   </div>
-                  <Badge variant="default">
-                    {next_project.due_at ? new Date(next_project.due_at).toLocaleDateString() : 'No date'}
-                  </Badge>
-                </div>
-              ) : (
-                <div className="text-center py-4 text-muted-foreground">
-                  No upcoming project
-                </div>
-              )}
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>

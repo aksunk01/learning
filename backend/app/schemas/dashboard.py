@@ -33,6 +33,8 @@ class DashboardResponse(BaseModel):
     overdue: list[AssignmentResponse]
     next_exam: AssignmentResponse | None
     next_project: AssignmentResponse | None
+    upcoming_exams: list[AssignmentResponse]
+    upcoming_projects: list[AssignmentResponse]
     due_next_7_days: list[AssignmentResponse]
     counts: DashboardCounts
     upcoming_by_course: list[UpcomingCourseCount]

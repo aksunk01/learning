@@ -7,7 +7,7 @@ from collections import Counter
 from zoneinfo import ZoneInfo
 
 from app.api.auth import get_current_user
-from app.api.v1.assignments import query_overdue_assignments, query_upcoming_assignments, query_next_exam, query_next_project, query_assignments_in_range, query_upcoming_assignment_count, query_upcoming_counts_by_course
+from app.api.v1.assignments import query_overdue_assignments, query_upcoming_assignments, query_assignments_in_range, query_upcoming_assignment_count, query_upcoming_counts_by_course
 from app.db.dependencies import get_db
 from app.models.user import User
 from app.models.assignment import Assignment
@@ -111,7 +111,6 @@ def get_dashboard(db: Session = Depends(get_db), current_user: User = Depends(ge
     upcoming = query_upcoming_assignments(
         db=db,
         user_id=current_user.id,
-        limit=5,
     )
 
     overdue = query_overdue_assignments(
@@ -135,17 +134,52 @@ def get_dashboard(db: Session = Depends(get_db), current_user: User = Depends(ge
 
     course_summaries = build_course_summaries(db=db, user_id=current_user.id)
 
+    # Query all upcoming exams and projects
+    upcoming_exams = (
+        db.query(Assignment)
+        .join(
+            Course,
+            Assignment.course_id == Course.id
+        )
+        .filter(
+            Course.user_id == current_user.id,
+            Assignment.due_at >= now,
+            Assignment.assignment_type == "exam"
+        )
+        .order_by(
+            Assignment.due_at.asc()
+        )
+        .all()
+    )
+
+    upcoming_projects = (
+        db.query(Assignment)
+        .join(
+            Course,
+            Assignment.course_id == Course.id
+        )
+        .filter(
+            Course.user_id == current_user.id,
+            Assignment.due_at >= now,
+            Assignment.assignment_type == "project"
+        )
+        .order_by(
+            Assignment.due_at.asc()
+        )
+        .all()
+    )
+
+    # Derive backward-compatible singular fields from the lists
+    next_exam = upcoming_exams[0] if upcoming_exams else None
+    next_project = upcoming_projects[0] if upcoming_projects else None
+
     return {
         "upcoming": upcoming,
         "overdue": overdue,
-        "next_exam": query_next_exam(
-            db=db,
-            user_id=current_user.id,
-        ),
-        "next_project": query_next_project(
-            db=db,
-            user_id=current_user.id,
-        ),
+        "next_exam": next_exam,
+        "next_project": next_project,
+        "upcoming_exams": upcoming_exams,
+        "upcoming_projects": upcoming_projects,
         "due_next_7_days": due_next_7_days,
         "counts": {
             "upcoming": query_upcoming_assignment_count(
