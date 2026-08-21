@@ -344,7 +344,7 @@ export default function DashboardPage() {
                           </p>
                         ) : null}
                       </div>
-                      <Badge variant="default">
+                      <Badge variant="secondary">
                         {exam.due_at ? new Date(exam.due_at).toLocaleDateString() : 'No date'}
                       </Badge>
                     </div>
@@ -386,7 +386,7 @@ export default function DashboardPage() {
                           </p>
                         ) : null}
                       </div>
-                      <Badge variant="default">
+                      <Badge variant="secondary">
                         {project.due_at ? new Date(project.due_at).toLocaleDateString() : 'No date'}
                       </Badge>
                     </div>

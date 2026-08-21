@@ -233,3 +233,49 @@ def process_course_material(course_id: UUID, material_id: UUID, db: Session = De
         "chunk_count": len(chunks),
         "processed_at": material.processed_at
     }
+
+@router.post("/{material_id}/reprocess")
+def reprocess_course_material(
+    course_id: UUID,
+    material_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    material = (
+        db.query(CourseMaterial)
+        .join(Course)
+        .filter(
+            CourseMaterial.id == material_id,
+            CourseMaterial.course_id == course_id,
+            Course.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    if material is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Course material not found",
+        )
+
+    service = CourseMaterialProcessingService()
+
+    try:
+        chunks = service.reprocess(
+            material=material,
+            db=db,
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to reprocess course material: {e}",
+        )
+
+    return {
+        "message": "Course material reprocessed successfully",
+        "material_id": str(material.id),
+        "processing_status": material.processing_status,
+        "chunk_count": len(chunks),
+        "processed_at": material.processed_at,
+    }

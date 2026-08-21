@@ -265,3 +265,30 @@ def get_overdue_assignment(db: Session = Depends(get_db), current_user: User = D
         db=db,
         user_id=current_user.id
     )
+
+@all_assignments_router.delete("/{assignment_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_assignment(assignment_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+
+    assignment = (
+        db.query(Assignment)
+        .join(
+            Course,
+            Assignment.course_id == Course.id
+        )
+        .filter(
+            Assignment.id == assignment_id,
+            Course.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if assignment is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assignment not found"
+        )
+
+    db.delete(assignment)
+    db.commit()
+
+    return None
