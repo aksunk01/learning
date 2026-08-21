@@ -28,6 +28,14 @@ export function AppDock() {
     }, 500);
   };
 
+  const handleMobileExpand = () => {
+    setIsExpanded(true);
+  };
+
+  const handleMobileCollapse = () => {
+    setIsExpanded(false);
+  };
+
   useEffect(() => {
     return () => {
       if (timeoutRef.current) {
@@ -44,7 +52,7 @@ export function AppDock() {
     <>
       {/* Desktop dock - visible only at md and larger */}
       <div 
-        className="fixed -left-2 top-1/2 z-50 -translate-y-1/2 hidden md:flex md:flex-col md:items-center md:gap-2 md:w-auto md:max-w-none"
+        className="fixed -left-3 top-1/2 z-50 -translate-y-1/2 hidden md:flex md:flex-col md:items-center md:gap-2 md:w-auto md:max-w-none"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
@@ -53,7 +61,7 @@ export function AppDock() {
           <button
             aria-label="Expand navigation"
             className={`rounded-lg border border-border bg-background p-2 shadow-md transition-all duration-300 motion-safe:ease-in-out hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none absolute inset-0 flex items-center justify-center ${isExpanded ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
-            onClick={() => setIsExpanded(true)}
+            onClick={handleMobileExpand}
           >
             <PanelLeft className="h-5 w-5" />
           </button>
@@ -94,12 +102,12 @@ export function AppDock() {
       
       {/* Mobile dock - visible only below md */}
       <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 flex-row items-center gap-2 rounded-lg border border-border bg-background p-2 shadow-lg max-w-[calc(100vw-2rem)] md:hidden">
-        <div className={`flex items-center gap-2 transition-all duration-300 motion-safe:ease-in-out relative overflow-hidden ${isExpanded ? 'w-[240px]' : 'w-12'}`}>
+        <div className={`relative flex h-12 items-center gap-2 transition-all duration-300 motion-safe:ease-in-out relative overflow-hidden ${isExpanded ? 'w-[240px]' : 'w-12'}`}>
           {/* Collapsed state - always visible but faded */}
           <button
             aria-label="Expand navigation"
             className={`rounded-lg border border-border bg-background p-2 shadow-md transition-all duration-300 motion-safe:ease-in-out hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none absolute inset-0 flex items-center justify-center ${isExpanded ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
-            onClick={() => setIsExpanded(true)}
+            onClick={handleMobileExpand}
           >
             <PanelLeft className="h-5 w-5" />
           </button>
@@ -115,7 +123,7 @@ export function AppDock() {
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               }`}
-              onClick={() => setIsExpanded(false)}
+              onClick={handleMobileCollapse}
             >
               <HomeIcon className="h-5 w-5" />
             </Link>
@@ -129,7 +137,7 @@ export function AppDock() {
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               }`}
-              onClick={() => setIsExpanded(false)}
+              onClick={handleMobileCollapse}
             >
               <BookOpenIcon className="h-5 w-5" />
             </Link>
@@ -137,7 +145,7 @@ export function AppDock() {
             <button
               aria-label="Collapse navigation"
               className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              onClick={() => setIsExpanded(false)}
+              onClick={handleMobileCollapse}
             >
               <X className="h-5 w-5" />
             </button>
