@@ -5,7 +5,9 @@ const nextConfig = {
     'macbook:3000',
     '*.ts.net',
     'localhost',
-    'localhost:3000'
+    'localhost:3000',
+    'lenovo',
+    'lenovo:3000'
   ]
 };
 
