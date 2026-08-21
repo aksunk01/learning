@@ -3,6 +3,7 @@ import { DM_Sans } from 'next/font/google';
 import "./globals.css";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { AppDock } from "@/components/navigation/app-dock";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,6 +26,7 @@ export const metadata = {
   description: "By Abhiram Sunkara",
 };
 
+
 export default function RootLayout({ children }) {
   return (
     <html
@@ -39,7 +41,9 @@ export default function RootLayout({ children }) {
           enableSystem
           disableTransitionOnChange
         >
+          <AppDock />
           {children}
+
         </ThemeProvider>
       </body>
     </html>

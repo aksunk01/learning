@@ -55,7 +55,7 @@ export default function CoursesPage() {
 
   if (isLoading) {
     return (
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-6 md:pb-6">
         <div className="mb-8 flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Courses</h1>
@@ -88,7 +88,7 @@ export default function CoursesPage() {
 
   if (error) {
     return (
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-6 md:pb-6">
         <div className="mb-8 flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Courses</h1>
@@ -107,7 +107,7 @@ export default function CoursesPage() {
   }
 
   return (
-    <div className="flex-1 p-6">
+    <div className="flex-1 p-6 md:pb-6">
       <div className="mb-8 flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Courses</h1>

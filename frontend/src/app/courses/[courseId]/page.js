@@ -110,7 +110,7 @@ export default function CourseDetailsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-6 md:pb-6">
         <h1 className="text-3xl font-bold tracking-tight">Loading Course...</h1>
       </div>
     );
@@ -118,7 +118,7 @@ export default function CourseDetailsPage() {
 
   if (error || !course) {
     return (
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-6 md:pb-6">
         <h1 className="text-3xl font-bold tracking-tight">Course Details</h1>
         <p className="text-destructive mt-2">
           {error || "Course not found"}
@@ -143,7 +143,7 @@ export default function CourseDetailsPage() {
   };
 
   return (
-    <div className="flex-1 p-6">
+    <div className="flex-1 p-6 md:pb-6">
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Course Details</h1>
       </div>
