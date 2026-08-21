@@ -3,7 +3,9 @@ const nextConfig = {
   allowedDevOrigins: [
     'macbook',
     'macbook:3000',
-    '*.ts.net'
+    '*.ts.net',
+    'localhost',
+    'localhost:3000'
   ]
 };
 

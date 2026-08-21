@@ -7,6 +7,7 @@ import { CreateCourseDialog } from "@/components/courses/create-course-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function CoursesPage() {
   const [courses, setCourses] = useState([]);
@@ -126,20 +127,22 @@ export default function CoursesPage() {
       {courses && courses.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {courses.map((course) => (
-            <Card key={course.id}>
-              <CardHeader>
-                <CardTitle>{course.name}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground mb-1">Code: {course.code}</p>
-                {course.semester && (
-                  <p className="text-muted-foreground mb-1">Semester: {course.semester}</p>
-                )}
-                {course.description && (
-                  <p className="text-muted-foreground">{course.description}</p>
-                )}
-              </CardContent>
-            </Card>
+            <Link href={`/courses/${course.id}`} key={course.id}>
+              <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                <CardHeader>
+                  <CardTitle>{course.name}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground mb-1">Code: {course.code}</p>
+                  {course.semester && (
+                    <p className="text-muted-foreground mb-1">Semester: {course.semester}</p>
+                  )}
+                  {course.description && (
+                    <p className="text-muted-foreground">{course.description}</p>
+                  )}
+                </CardContent>
+              </Card>
+            </Link>
           ))}
         </div>
       ) : (
