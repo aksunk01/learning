@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { fetchCourse } from "@/lib/courses-api";
 import { fetchCourseMaterials, processCourseMaterial } from "@/lib/course-materials-api";
-import { fetchCourseAssignments, deleteAssignment } from "@/lib/assignments-api";
+import { fetchCourseAssignments, deleteAssignment, updateAssignmentCompletion } from "@/lib/assignments-api";
 import { UploadCourseMaterialDialog } from "@/components/courses/upload-course-material-dialog";
+import { CreateAssignmentDialog } from "@/components/assignments/create-assignment-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,6 +30,7 @@ export default function CourseDetailsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [assignmentToDelete, setAssignmentToDelete] = useState(null);
   const [deleteError, setDeleteError] = useState("");
+  const [togglingCompletionId, setTogglingCompletionId] = useState(null);
 
   const params = useParams();
   const router = useRouter();
@@ -77,6 +79,13 @@ export default function CourseDetailsPage() {
     setAssignmentToDelete(assignment);
     setDeleteError("");
     setDeleteDialogOpen(true);
+  };
+
+  const handleAssignmentCreated = (createdAssignment) => {
+    setAssignments((currentAssignments) => [
+      ...currentAssignments,
+      createdAssignment,
+    ]);
   };
 
   const handleDeleteAssignment = async () => {
@@ -190,6 +199,41 @@ export default function CourseDetailsPage() {
     }
   };
 
+  const handleAssignmentCompletion = async (
+    assignmentId,
+    isCompleted
+  ) => {
+    // Set the assignment being toggled for UI feedback
+    setTogglingCompletionId(assignmentId);
+    
+    try {
+      const updatedAssignment = await updateAssignmentCompletion(
+        assignmentId,
+        isCompleted,
+        token
+      );
+      
+      // Update local state with the new completion status
+      setAssignments(prevAssignments =>
+        prevAssignments.map(assignment =>
+          assignment.id === assignmentId ? updatedAssignment : assignment
+        )
+      );
+    } catch (err) {
+      if (err.message.includes("401") || err.message.includes("403")) {
+        // Authentication error
+        localStorage.removeItem("access_token");
+        router.push("/login");
+        return;
+      }
+      
+      // Handle error case - could show a toast or similar UI feedback
+      console.error("Failed to update assignment completion:", err);
+    } finally {
+      setTogglingCompletionId(null);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex-1 p-6 md:pb-6">
@@ -287,28 +331,52 @@ export default function CourseDetailsPage() {
 
         {activeView === 'assignments' ? (
           <div>
-            <h3 className="text-xl font-semibold mb-4">Assignments</h3>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-semibold">
+                Assignments
+              </h3>
+
+              <CreateAssignmentDialog
+                courseId={courseId}
+                token={token}
+                onAssignmentCreated={handleAssignmentCreated}
+              />
+            </div>
+            
             {sortedAssignments.length === 0 ? (
               <p className="text-muted-foreground">No assignments found for this course.</p>
             ) : (
               <div className="space-y-4">
                 {sortedAssignments.map((assignment) => (
-                  <div key={assignment.id} className="border rounded-lg p-4">
+                  <div 
+                    key={assignment.id} 
+                    className={`border rounded-lg p-4 ${assignment.is_completed ? 'opacity-70 bg-muted/50' : ''}`}
+                  >
                     <div className="flex justify-between items-start">
                       <div>
-                        <h4 className="font-medium">{assignment.title}</h4>
+                        <h4 className={`font-medium ${assignment.is_completed ? 'line-through' : ''}`}>{assignment.title}</h4>
                         {assignment.assignment_type && (
                           <p className="text-sm text-muted-foreground mt-1">{assignment.assignment_type}</p>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => confirmDeleteAssignment(assignment)}
-                        disabled={deletingAssignmentId === assignment.id}
-                        className="text-destructive hover:text-destructive/80 text-sm font-medium"
-                      >
-                        {deletingAssignmentId === assignment.id ? "Deleting..." : "Delete"}
-                      </button>
+                      <div className="flex space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => handleAssignmentCompletion(assignment.id, !assignment.is_completed)}
+                          disabled={togglingCompletionId === assignment.id}
+                          className={`text-sm font-medium ${assignment.is_completed ? 'text-gray-500 hover:text-gray-700' : 'text-primary hover:text-primary/80'}`}
+                        >
+                          {togglingCompletionId === assignment.id ? 'Updating...' : assignment.is_completed ? 'Mark Incomplete' : 'Mark Complete'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => confirmDeleteAssignment(assignment)}
+                          disabled={deletingAssignmentId === assignment.id}
+                          className="text-destructive hover:text-destructive/80 text-sm font-medium"
+                        >
+                          {deletingAssignmentId === assignment.id ? "Deleting..." : "Delete"}
+                        </button>
+                      </div>
                     </div>
                     
                     <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
@@ -328,6 +396,12 @@ export default function CourseDetailsPage() {
                         </div>
                       )}
                     </div>
+                    
+                    {assignment.is_completed && assignment.completed_at && (
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        Completed: {new Date(assignment.completed_at).toLocaleString()}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

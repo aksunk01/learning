@@ -11,7 +11,7 @@ from app.db.dependencies import get_db
 from app.models.assignment import Assignment
 from app.models.course import Course
 from app.models.user import User
-from app.schemas.assignment import AssignmentResponse
+from app.schemas.assignment import AssignmentResponse, AssignmentCreate, AssignmentCompletionUpdate
 
 
 
@@ -221,6 +221,42 @@ def get_course_assignments(course_id: UUID, db: Session = Depends(get_db), curre
     return assignments
 
 
+@router.post("", response_model=AssignmentResponse, status_code=status.HTTP_201_CREATED)
+def create_assignment(
+    course_id: UUID,
+    assignment_data: AssignmentCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # Verify course exists and belongs to current user
+    course = (
+        db.query(Course)
+        .filter(
+            Course.id == course_id,
+            Course.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if course is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Course not found"
+        )
+
+    # Create the assignment
+    assignment = Assignment(
+        course_id=course_id,
+        **assignment_data.model_dump(exclude_unset=True)
+    )
+    
+    db.add(assignment)
+    db.commit()
+    db.refresh(assignment)
+    
+    return assignment
+
+
 
 @all_assignments_router.get("", response_model=list[AssignmentResponse])
 def get_all_assignments(course_id: UUID | None = None, start: date | None = None, end: date | None = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -292,3 +328,42 @@ def delete_assignment(assignment_id: UUID, db: Session = Depends(get_db), curren
     db.commit()
 
     return None
+
+
+@all_assignments_router.patch("/{assignment_id}/completion", response_model=AssignmentResponse)
+def update_assignment_completion(
+    assignment_id: UUID,
+    completion_data: AssignmentCompletionUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    assignment = (
+        db.query(Assignment)
+        .join(
+            Course,
+            Assignment.course_id == Course.id
+        )
+        .filter(
+            Assignment.id == assignment_id,
+            Course.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if assignment is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assignment not found"
+        )
+
+    assignment.is_completed = completion_data.is_completed
+    
+    if completion_data.is_completed:
+        assignment.completed_at = datetime.now(timezone.utc)
+    else:
+        assignment.completed_at = None
+
+    db.commit()
+    db.refresh(assignment)
+    
+    return assignment
