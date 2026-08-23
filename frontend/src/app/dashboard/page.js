@@ -223,7 +223,8 @@ export default function DashboardPage() {
     upcoming_projects,
     counts, 
     workload_next_7_days, 
-    course_summaries 
+    course_summaries,
+    completed
   } = dashboardData;
 
   return (
@@ -402,37 +403,82 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Course Overview */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Course Overview</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {course_summaries && course_summaries.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {course_summaries.map((summary) => (
-                <div key={summary.course_id} className="p-4 border rounded-lg">
-                  <h3 className="font-medium">{summary.course_name}</h3>
-                  <p className="text-sm text-muted-foreground mb-2">{summary.course_code}</p>
-                  {summary.semester && (
-                    <p className="text-xs text-muted-foreground mb-2">{summary.semester}</p>
-                  )}
-                  <div className="flex justify-between items-center">
-                    <Badge variant="secondary">{summary.upcoming_count} assignments</Badge>
-                    {summary.next_assignment && summary.next_assignment.due_at && (
-                      <span className="text-xs text-muted-foreground">Due: {new Date(summary.next_assignment.due_at).toLocaleDateString()}</span>
-                    )}
-                  </div>
+      {/* Assignments Completed and Course Overview */}
+      {completed && completed.length > 0 && course_summaries && course_summaries.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Assignments Completed</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4 max-h-[320px] overflow-y-auto">
+                {completed.map((assignment) => {
+                  const courseName = getCourseName(assignment.course_id);
+                  return (
+                    <div key={assignment.id} className="flex items-center justify-between p-3 border rounded-lg bg-muted/50">
+                      <div>
+                        <h3 className="font-medium line-through">{assignment.title}</h3>
+                        {courseName && assignment.assignment_type ? (
+                          <p className="text-sm text-muted-foreground">
+                            {courseName} · {assignment.assignment_type}
+                          </p>
+                        ) : courseName ? (
+                          <p className="text-sm text-muted-foreground">
+                            {courseName}
+                          </p>
+                        ) : assignment.assignment_type ? (
+                          <p className="text-sm text-muted-foreground">
+                            {assignment.assignment_type}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="flex flex-col items-end">
+                        {assignment.completed_at && (
+                          <span className="text-xs text-muted-foreground">
+                            Completed: {new Date(assignment.completed_at).toLocaleDateString()}
+                          </span>
+                        )}
+                        {assignment.due_at && (
+                          <Badge variant="secondary" className="mt-1">
+                            Due: {new Date(assignment.due_at).toLocaleDateString()}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Course Overview</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="max-h-[320px] overflow-y-auto">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {course_summaries.map((summary) => (
+                    <div key={summary.course_id} className="p-4 border rounded-lg">
+                      <h3 className="font-medium">{summary.course_name}</h3>
+                      <p className="text-sm text-muted-foreground mb-2">{summary.course_code}</p>
+                      {summary.semester && (
+                        <p className="text-xs text-muted-foreground mb-2">{summary.semester}</p>
+                      )}
+                      <div className="flex justify-between items-center">
+                        <Badge variant="secondary">{summary.upcoming_count} assignments</Badge>
+                        {summary.next_assignment && summary.next_assignment.due_at && (
+                          <span className="text-xs text-muted-foreground">Due: {new Date(summary.next_assignment.due_at).toLocaleDateString()}</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-4 text-muted-foreground">
-              No courses found
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Workload */}
       <Card>

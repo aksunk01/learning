@@ -38,7 +38,8 @@ def query_upcoming_assignments(db: Session, user_id: UUID, limit: int | None = N
         )
         .filter(
             Course.user_id == user_id,
-            Assignment.due_at >= now
+            Assignment.due_at >= now,
+            Assignment.is_completed == False
         )
         .order_by(
             Assignment.due_at.asc()
@@ -61,7 +62,8 @@ def query_overdue_assignments(db: Session, user_id: UUID)-> list[Assignment]:
         )
         .filter(
             Course.user_id ==user_id,
-            Assignment.due_at < now
+            Assignment.due_at < now,
+            Assignment.is_completed == False
         )
         .order_by(
             Assignment.due_at.desc()
@@ -81,7 +83,8 @@ def query_next_exam(db: Session, user_id: UUID) -> Assignment | None:
         .filter(
             Course.user_id == user_id,
             Assignment.due_at >= now,
-            Assignment.assignment_type == "exam"
+            Assignment.assignment_type == "exam",
+            Assignment.is_completed == False
         )
         .order_by(
             Assignment.due_at.asc()
@@ -101,7 +104,8 @@ def query_next_project(db: Session, user_id: UUID) -> Assignment | None:
         .filter(
             Course.user_id == user_id,
             Assignment.due_at >= now,
-            Assignment.assignment_type == "project"
+            Assignment.assignment_type == "project",
+            Assignment.is_completed == False
         )
         .order_by(
             Assignment.due_at.asc()
@@ -117,7 +121,8 @@ def query_assignments_in_range(db: Session, user_id: UUID, start_at: datetime | 
             Assignment.course_id == Course.id
         )
         .filter(
-            Course.user_id == user_id
+            Course.user_id == user_id,
+            Assignment.is_completed == False
         )
     )
 
@@ -156,7 +161,8 @@ def query_upcoming_assignment_count(db: Session, user_id: UUID) -> int:
         )
         .filter(
             Course.user_id == user_id,
-            Assignment.due_at >= now
+            Assignment.due_at >= now,
+            Assignment.is_completed == False
         )
         .scalar()
     )
@@ -177,7 +183,8 @@ def query_upcoming_counts_by_course(db: Session, user_id: UUID):
         )
         .filter(
             Course.user_id == user_id,
-            Assignment.due_at >= now
+            Assignment.due_at >= now,
+            Assignment.is_completed == False
         )
         .group_by(
             Course.id,
@@ -300,6 +307,26 @@ def get_overdue_assignment(db: Session = Depends(get_db), current_user: User = D
     return query_overdue_assignments(
         db=db,
         user_id=current_user.id
+    )
+
+
+def query_completed_assignments(db: Session, user_id: UUID, limit: int = 20) -> list[Assignment]:
+    """Query completed assignments for a user, ordered by completion date descending."""
+    return (
+        db.query(Assignment)
+        .join(
+            Course,
+            Assignment.course_id == Course.id
+        )
+        .filter(
+            Course.user_id == user_id,
+            Assignment.is_completed == True
+        )
+        .order_by(
+            Assignment.completed_at.desc().nullslast()
+        )
+        .limit(limit)
+        .all()
     )
 
 @all_assignments_router.delete("/{assignment_id}", status_code=status.HTTP_204_NO_CONTENT)

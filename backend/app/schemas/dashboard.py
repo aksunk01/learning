@@ -40,3 +40,4 @@ class DashboardResponse(BaseModel):
     upcoming_by_course: list[UpcomingCourseCount]
     workload_next_7_days: list[DailyWorkload]
     course_summaries: list[CourseSummary]
+    completed: list[AssignmentResponse]

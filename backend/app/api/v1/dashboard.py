@@ -7,7 +7,7 @@ from collections import Counter
 from zoneinfo import ZoneInfo
 
 from app.api.auth import get_current_user
-from app.api.v1.assignments import query_overdue_assignments, query_upcoming_assignments, query_assignments_in_range, query_upcoming_assignment_count, query_upcoming_counts_by_course
+from app.api.v1.assignments import query_overdue_assignments, query_upcoming_assignments, query_assignments_in_range, query_upcoming_assignment_count, query_upcoming_counts_by_course, query_completed_assignments
 from app.db.dependencies import get_db
 from app.models.user import User
 from app.models.assignment import Assignment
@@ -27,7 +27,7 @@ def build_daily_workload(assignments):
     counts = Counter(
         assignment.due_at.astimezone(EASTERN_TIME).date()
         for assignment in assignments
-        if assignment.due_at is not None
+        if assignment.due_at is not None and not assignment.is_completed
     )
 
     return [
@@ -144,7 +144,8 @@ def get_dashboard(db: Session = Depends(get_db), current_user: User = Depends(ge
         .filter(
             Course.user_id == current_user.id,
             Assignment.due_at >= now,
-            Assignment.assignment_type == "exam"
+            Assignment.assignment_type == "exam",
+            Assignment.is_completed == False
         )
         .order_by(
             Assignment.due_at.asc()
@@ -161,12 +162,20 @@ def get_dashboard(db: Session = Depends(get_db), current_user: User = Depends(ge
         .filter(
             Course.user_id == current_user.id,
             Assignment.due_at >= now,
-            Assignment.assignment_type == "project"
+            Assignment.assignment_type == "project",
+            Assignment.is_completed == False
         )
         .order_by(
             Assignment.due_at.asc()
         )
         .all()
+    )
+
+    # Query completed assignments
+    completed = query_completed_assignments(
+        db=db,
+        user_id=current_user.id,
+        limit=20
     )
 
     # Derive backward-compatible singular fields from the lists
@@ -192,5 +201,6 @@ def get_dashboard(db: Session = Depends(get_db), current_user: User = Depends(ge
         "upcoming_by_course": upcoming_by_course,
         "workload_next_7_days": workload_next_7_days,
         "course_summaries": course_summaries,
+        "completed": completed
 
     }
