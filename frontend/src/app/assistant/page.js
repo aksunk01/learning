@@ -9,6 +9,7 @@ import { fetchCourses } from "@/lib/courses-api";
 import { useRouter } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { askCourseQuestion } from "@/lib/assistant-api";
+import { ArrowUp } from "lucide-react";
 
 export default function AssistantPage() {
   const [courses, setCourses] = useState([]);
@@ -198,37 +199,13 @@ export default function AssistantPage() {
             </Card>
 
             {/* Composer with course selector */}
-            <Card className="mt-4 p-4">
+            <div className="mt-4 rounded-2xl border bg-card shadow-sm p-3">
               <div className="flex flex-col gap-2">
-                {/* Course selector */}
-                <div className="mb-2">
-                  {isCoursesLoading ? (
-                    <Skeleton className="h-10 w-full" />
-                  ) : coursesError ? (
-                    <p className="text-sm text-destructive">{coursesError}</p>
-                  ) : courses && courses.length > 0 ? (
-                    <Select value={selectedCourseId} onValueChange={handleCourseChange}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a course" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {courses.map((course) => (
-                          <SelectItem key={course.id} value={course.id}>
-                            {course.code ? `${course.code} — ${course.name}` : course.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No courses available. Create a course and upload course material before asking questions.</p>
-                  )}
-                </div>
-
                 <Textarea
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   placeholder="Ask a question about your course materials..."
-                  className="min-h-[100px] resize-none"
+                  className="min-h-[100px] border-0 bg-transparent shadow-none focus-visible:ring-0 resize-none w-full"
                   disabled={!selectedCourseId || isGenerating}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && !event.shiftKey) {
@@ -240,18 +217,44 @@ export default function AssistantPage() {
                 {chatError && (
                   <p className="text-sm text-destructive">{chatError}</p>
                 )}
-                <div className="flex justify-end">
+                <div className="flex items-center justify-between gap-2">
+                  {/* Course selector */}
+                  <div className="flex-1">
+                    {isCoursesLoading ? (
+                      <Skeleton className="h-8 w-full" />
+                    ) : coursesError ? (
+                      <p className="text-sm text-destructive">{coursesError}</p>
+                    ) : courses && courses.length > 0 ? (
+                      <Select value={selectedCourseId} onValueChange={handleCourseChange}>
+                        <SelectTrigger className="h-8 w-auto max-w-[70%] rounded-md text-sm">
+                          <SelectValue placeholder="Select a course" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {courses.map((course) => (
+                            <SelectItem key={course.id} value={course.id}>
+                              {course.code ? `${course.code} — ${course.name}` : course.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No courses available. Create a course and upload course material before asking questions.</p>
+                    )}
+                  </div>
+
                   <Button 
                     variant="default" 
-                    size="sm" 
+                    size="icon"
+                    className="h-8 w-8 rounded-full"
                     disabled={!selectedCourseId || !inputValue.trim() || isGenerating}
                     onClick={handleSendMessage}
+                    aria-label="Send message"
                   >
-                    Send
+                    <ArrowUp className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
-            </Card>
+            </div>
           </div>
         </div>
       </main>

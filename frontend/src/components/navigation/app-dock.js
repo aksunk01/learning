@@ -57,7 +57,7 @@ export function AppDock() {
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        <div className={`relative w-12 overflow-hidden rounded-lg border border-border bg-background p-2 shadow-lg transition-[height] duration-300 motion-safe:ease-in-out ${isExpanded ? "h-24" : "h-12"}`}>
+        <div className={`relative w-12 overflow-hidden rounded-lg border border-border bg-background p-2 shadow-lg transition-[height] duration-300 motion-safe:ease-in-out ${isExpanded ? "h-36" : "h-12"}`}>
           {/* Collapsed state - always visible but faded */}
           <button
             aria-label="Expand navigation"
@@ -116,7 +116,7 @@ export function AppDock() {
       
       {/* Mobile dock - visible only below md */}
       <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 flex-row items-center gap-2 rounded-lg border border-border bg-background p-2 shadow-lg max-w-[calc(100vw-2rem)] md:hidden">
-        <div className={`relative flex h-12 items-center gap-2 transition-all duration-300 motion-safe:ease-in-out relative overflow-hidden ${isExpanded ? 'w-[240px]' : 'w-12'}`}>
+        <div className={`relative flex h-12 items-center gap-2 transition-all duration-300 motion-safe:ease-in-out ${isExpanded ? 'w-[260px]' : 'w-12'}`}>
           {/* Collapsed state - always visible but faded */}
           <button
             aria-label="Expand navigation"
