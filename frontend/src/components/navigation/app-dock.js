@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { HomeIcon, BookOpenIcon, PanelLeft, X } from "lucide-react";
+import { HomeIcon, BookOpenIcon, PanelLeft, X, Sparkles } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
 export function AppDock() {
@@ -13,6 +13,7 @@ export function AppDock() {
   const isDashboardActive = pathname === "/dashboard";
   const isCoursesActive =
     pathname === "/courses" || pathname.startsWith("/courses/");
+  const isAssistantActive = pathname === "/assistant";
 
   const handleMouseEnter = () => {
     if (timeoutRef.current) {
@@ -96,6 +97,19 @@ export function AppDock() {
             >
               <BookOpenIcon className="h-5 w-5" />
             </Link>
+
+            <Link
+              href="/assistant"
+              aria-label="AI Assistant"
+              aria-current={isAssistantActive ? "page" : undefined}
+              className={`rounded-md p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                isAssistantActive
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              }`}
+            >
+              <Sparkles className="h-5 w-5" />
+            </Link>
           </nav>
         </div>
       </div>
@@ -140,6 +154,20 @@ export function AppDock() {
               onClick={handleMobileCollapse}
             >
               <BookOpenIcon className="h-5 w-5" />
+            </Link>
+            
+            <Link
+              href="/assistant"
+              aria-label="AI Assistant"
+              aria-current={isAssistantActive ? "page" : undefined}
+              className={`rounded-md p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                isAssistantActive
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              }`}
+              onClick={handleMobileCollapse}
+            >
+              <Sparkles className="h-5 w-5" />
             </Link>
             
             <button
