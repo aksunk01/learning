@@ -1,7 +1,77 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import AliasPath, BaseModel, ConfigDict, field_validator, Field
+
+class AssignmentMaterialLink(BaseModel):
+    material_id: UUID
+    relationship_type: str = "reference"
+    is_primary: bool = False
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )
+
+
+class AssignmentMaterialsLinkRequest(BaseModel):
+    materials: list[AssignmentMaterialLink]
+
+
+class AssignmentMaterialUpdate(BaseModel):
+    relationship_type: str | None = None
+    is_primary: bool | None = None
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )
+
+
+class AssignmentMaterialResponse(BaseModel):
+    material_id: UUID
+    name: str = Field(validation_alias=AliasPath("material", "name"))
+    description: str | None = Field(validation_alias=AliasPath("material", "description"), default=None)
+    material_type: str | None = Field(validation_alias=AliasPath("material", "material_type"), default=None)
+    relationship_type: str
+    is_primary: bool
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )
+
+
+class AssignmentDetailResponse(BaseModel):
+    id: UUID
+    course_id: UUID
+    material_id: UUID | None
+
+    title: str
+    description: str | None
+    assignment_type: str | None
+
+    due_at: datetime | None
+
+    points: float | None
+    weight_percent: float | None
+
+    source_page: int | None
+    source_slide: int | None
+    source_section: str | None
+    source_chunk_index: int | None
+
+    extraction_metadata: dict | None
+    
+    is_completed: bool
+    completed_at: datetime | None
+
+    created_at: datetime
+    updated_at: datetime
+    
+    linked_materials: list[AssignmentMaterialResponse] = Field(validation_alias="assignment_materials", default_factory=list)
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )
+
 
 class AssignmentCreate(BaseModel):
     title: str

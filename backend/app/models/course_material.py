@@ -103,3 +103,9 @@ class CourseMaterial(Base):
         "Assignment",
         back_populates="material"
     )
+
+    assignment_materials = relationship(
+        "AssignmentMaterial",
+        back_populates="material",
+        cascade="all, delete-orphan"
+    )

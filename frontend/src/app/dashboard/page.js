@@ -52,6 +52,11 @@ export default function DashboardPage() {
     return summary ? summary.course_name : null;
   };
 
+  // Handle navigation to assignment detail page
+  const handleAssignmentClick = (assignmentId) => {
+    router.push(`/assignments/${assignmentId}`);
+  };
+
   if (isLoading) {
     return (
       <div className="flex-1 p-6 md:pb-6">
@@ -286,7 +291,11 @@ export default function DashboardPage() {
                 upcoming.map((assignment) => {
                   const courseName = getCourseName(assignment.course_id);
                   return (
-                    <div key={assignment.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div 
+                      key={assignment.id} 
+                      className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => handleAssignmentClick(assignment.id)}
+                    >
                       <div>
                         <h3 className="font-medium">{assignment.title}</h3>
                         {courseName && assignment.assignment_type ? (
@@ -328,7 +337,11 @@ export default function DashboardPage() {
                 upcoming_exams.map((exam) => {
                   const courseName = getCourseName(exam.course_id);
                   return (
-                    <div key={exam.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div 
+                      key={exam.id} 
+                      className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => handleAssignmentClick(exam.id)}
+                    >
                       <div>
                         <h3 className="font-medium">{exam.title}</h3>
                         {courseName && exam.assignment_type ? (
@@ -370,7 +383,11 @@ export default function DashboardPage() {
                 upcoming_projects.map((project) => {
                   const courseName = getCourseName(project.course_id);
                   return (
-                    <div key={project.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div 
+                      key={project.id} 
+                      className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => handleAssignmentClick(project.id)}
+                    >
                       <div>
                         <h3 className="font-medium">{project.title}</h3>
                         {courseName && project.assignment_type ? (

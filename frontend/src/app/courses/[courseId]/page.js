@@ -36,6 +36,11 @@ export default function CourseDetailsPage() {
   const router = useRouter();
   const courseId = params.courseId;
 
+  // Handle navigation to assignment detail page
+  const handleAssignmentClick = (assignmentId) => {
+    router.push(`/assignments/${assignmentId}`);
+  };
+
   useEffect(() => {
     const storedToken = localStorage.getItem("access_token");
 
@@ -350,7 +355,14 @@ export default function CourseDetailsPage() {
                 {sortedAssignments.map((assignment) => (
                   <div 
                     key={assignment.id} 
-                    className={`border rounded-lg p-4 ${assignment.is_completed ? 'opacity-70 bg-muted/50' : ''}`}
+                    className={`border rounded-lg p-4 ${assignment.is_completed ? 'opacity-70 bg-muted/50' : ''} cursor-pointer hover:bg-muted/50 transition-colors`}
+                    onClick={(e) => {
+                      // Prevent navigation when clicking on interactive elements
+                      if (e.target.closest('button') || e.target.closest('input')) {
+                        return;
+                      }
+                      handleAssignmentClick(assignment.id);
+                    }}
                   >
                     <div className="flex justify-between items-start">
                       <div>
@@ -362,7 +374,10 @@ export default function CourseDetailsPage() {
                       <div className="flex space-x-2">
                         <button
                           type="button"
-                          onClick={() => handleAssignmentCompletion(assignment.id, !assignment.is_completed)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAssignmentCompletion(assignment.id, !assignment.is_completed);
+                          }}
                           disabled={togglingCompletionId === assignment.id}
                           className={`text-sm font-medium ${assignment.is_completed ? 'text-gray-500 hover:text-gray-700' : 'text-primary hover:text-primary/80'}`}
                         >
@@ -370,7 +385,10 @@ export default function CourseDetailsPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => confirmDeleteAssignment(assignment)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            confirmDeleteAssignment(assignment);
+                          }}
                           disabled={deletingAssignmentId === assignment.id}
                           className="text-destructive hover:text-destructive/80 text-sm font-medium"
                         >

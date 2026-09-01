@@ -3,15 +3,25 @@ from datetime import datetime, timezone, time, date
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, relationship, selectinload
 from sqlalchemy import func
 
 from app.api.auth import get_current_user
 from app.db.dependencies import get_db
 from app.models.assignment import Assignment
+from app.models.assignment_material import AssignmentMaterial
 from app.models.course import Course
+from app.models.course_material import CourseMaterial
 from app.models.user import User
-from app.schemas.assignment import AssignmentResponse, AssignmentCreate, AssignmentCompletionUpdate
+from app.schemas.assignment import (
+    AssignmentResponse, 
+    AssignmentCreate, 
+    AssignmentCompletionUpdate, 
+    AssignmentDetailResponse,
+    AssignmentMaterialResponse,
+    AssignmentMaterialsLinkRequest,
+    AssignmentMaterialUpdate
+)
 
 
 
@@ -394,3 +404,263 @@ def update_assignment_completion(
     db.refresh(assignment)
     
     return assignment
+
+
+# New endpoint for assignment detail
+@all_assignments_router.get("/{assignment_id}", response_model=AssignmentDetailResponse)
+def get_assignment_detail(
+    assignment_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    "Get an assignment detail by ID including linked materials"
+
+    # Get the assignment with joined course and materials
+    assignment = (
+        db.query(Assignment)
+        .join(Course)
+        .filter(
+            Assignment.id == assignment_id,
+            Course.user_id == current_user.id
+        )
+        .options(
+            selectinload(Assignment.assignment_materials)
+            .selectinload(AssignmentMaterial.material)
+        )
+        .first()
+    )
+
+    if not assignment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assignment not found"
+        )
+
+    # Return the assignment with linked materials
+    return assignment
+
+
+# New endpoint for linking course materials to an assignment
+@all_assignments_router.post("/{assignment_id}/materials", response_model=list[AssignmentMaterialResponse])
+def link_assignment_materials(
+    assignment_id: UUID,
+    link_request: AssignmentMaterialsLinkRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    "Link existing course materials to an assignment"
+
+    # Get the assignment with joined course to verify ownership
+    assignment = (
+        db.query(Assignment)
+        .join(Course)
+        .filter(
+            Assignment.id == assignment_id,
+            Course.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if not assignment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assignment not found"
+        )
+
+    # Verify all requested materials belong to the same course as the assignment
+    course_id = assignment.course_id
+    
+    # Check for duplicate material IDs within the request itself
+    material_ids = [link.material_id for link in link_request.materials]
+    if len(material_ids) != len(set(material_ids)):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Duplicate material IDs found in request"
+        )
+    
+    # Check if any material is already linked to this assignment
+    existing_links = (
+        db.query(AssignmentMaterial)
+        .filter(
+            AssignmentMaterial.assignment_id == assignment_id,
+            AssignmentMaterial.material_id.in_(material_ids)
+        )
+        .all()
+    )
+    
+    if existing_links:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Some materials are already linked to this assignment"
+        )
+    
+    # Check that all materials belong to the same course as the assignment
+    materials = (
+        db.query(CourseMaterial)
+        .filter(
+            CourseMaterial.id.in_(material_ids),
+            CourseMaterial.course_id == course_id
+        )
+        .all()
+    )
+    
+    if len(materials) != len(material_ids):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="One or more materials do not belong to the assignment's course"
+        )
+    
+    # Check if more than one material has is_primary=true
+    primary_materials = [link for link in link_request.materials if link.is_primary]
+    if len(primary_materials) > 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only one material can be marked as primary"
+        )
+    
+    # If there's a new primary material, unset any existing primary link for this assignment
+    if primary_materials:
+        db.query(AssignmentMaterial)\
+          .filter(AssignmentMaterial.assignment_id == assignment_id)\
+          .update({"is_primary": False})
+    
+    # Create the new assignment-material links
+    new_links = []
+    for material_link in link_request.materials:
+        link = AssignmentMaterial(
+            assignment_id=assignment_id,
+            material_id=material_link.material_id,
+            relationship_type=material_link.relationship_type,
+            is_primary=material_link.is_primary
+        )
+        db.add(link)
+        new_links.append(link)
+    
+    db.commit()
+    
+    # Reload the created links with material data for proper response serialization
+    if new_links:
+        reloaded_links = (
+            db.query(AssignmentMaterial)
+            .options(selectinload(AssignmentMaterial.material))
+            .filter(AssignmentMaterial.id.in_([link.id for link in new_links]))
+            .all()
+        )
+        return reloaded_links
+    
+    # Return the created links
+    return new_links
+
+
+# New endpoint for updating an assignment-material link
+@all_assignments_router.patch("/{assignment_id}/materials/{material_id}", response_model=AssignmentMaterialResponse)
+def update_assignment_material(
+    assignment_id: UUID,
+    material_id: UUID,
+    update_data: AssignmentMaterialUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    "Update an existing assignment-material link"
+
+    # Get the assignment with joined course to verify ownership
+    assignment = (
+        db.query(Assignment)
+        .join(Course)
+        .filter(
+            Assignment.id == assignment_id,
+            Course.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if not assignment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assignment not found"
+        )
+
+    # Find the specific link to update
+    link = (
+        db.query(AssignmentMaterial)
+        .filter(
+            AssignmentMaterial.assignment_id == assignment_id,
+            AssignmentMaterial.material_id == material_id
+        )
+        .first()
+    )
+
+    if not link:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assignment-material link not found"
+        )
+
+    # Update the link with provided data
+    if update_data.relationship_type is not None:
+        link.relationship_type = update_data.relationship_type
+    
+    if update_data.is_primary is not None:
+        # If setting as primary, unset any other primary links for this assignment
+        if update_data.is_primary:
+            db.query(AssignmentMaterial)\
+              .filter(AssignmentMaterial.assignment_id == assignment_id)\
+              .update({"is_primary": False})
+
+            db.flush()
+        
+        link.is_primary = update_data.is_primary
+
+    db.commit()
+    db.refresh(link)
+    
+    # Reload the link with material data for proper response serialization
+    reloaded_link = (
+        db.query(AssignmentMaterial)
+        .options(selectinload(AssignmentMaterial.material))
+        .filter(AssignmentMaterial.id == link.id)
+        .first()
+    )
+    
+    return reloaded_link
+
+
+@all_assignments_router.delete("/{assignment_id}/materials/{material_id}", status_code=status.HTTP_204_NO_CONTENT)
+def unlink_assignment_material(assignment_id: UUID, material_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    "Unlink an existing assignment-material relationship"
+
+    assignment = (
+        db.query(Assignment)
+        .join(Course)
+        .filter(
+            Assignment.id == assignment_id,
+            Course.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if not assignment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assignment not found"
+        )
+
+    link = (
+        db.query(AssignmentMaterial)
+        .filter(
+            AssignmentMaterial.assignment_id == assignment_id,
+            AssignmentMaterial.material_id == material_id
+        )
+        .first()
+    )
+
+    if not link:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assignment-material link not found"
+        )
+
+    db.delete(link)
+    db.commit()
+
+    return None
