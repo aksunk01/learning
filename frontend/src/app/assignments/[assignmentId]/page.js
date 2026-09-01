@@ -1,7 +1,7 @@
 "use client";
 
 import { fetchCourse } from '@/lib/courses-api';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { fetchAssignment, linkAssignmentMaterials, unlinkAssignmentMaterial, updateAssignmentMaterial } from '@/lib/assignments-api';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { fetchCourseMaterials, fetchCourseMaterialFile } from '@/lib/course-materials-api';
+import { renderAsync } from 'docx-preview';
 
 export default function AssignmentDetailPage() {
   const params = useParams();
@@ -43,6 +44,8 @@ export default function AssignmentDetailPage() {
   const [unlinkError, setUnlinkError] = useState('');
   const [makingPrimary, setMakingPrimary] = useState(null);
   const [makePrimaryError, setMakePrimaryError] = useState('');
+  const docxContainerRef = useRef(null);
+  const [viewerBlob, setViewerBlob] = useState(null);
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
@@ -151,11 +154,13 @@ export default function AssignmentDetailPage() {
 
         setViewerMimeType(blob.type);
         setViewerObjectUrl(objectUrl);
+        setViewerBlob(blob);
       } catch (err) {
         if (!isCancelled) {
           setViewerError(err.message || 'Failed to load document');
           setViewerObjectUrl(null);
           setViewerMimeType('');
+          setViewerBlob(null);
         }
       } finally {
         if (!isCancelled) {
@@ -174,6 +179,40 @@ export default function AssignmentDetailPage() {
       }
     };
   }, [assignment?.course_id, effectiveViewerMaterialId]);
+
+  // Handle DOCX rendering separately from file loading
+  useEffect(() => {
+    if (!viewerBlob || !docxContainerRef.current) {
+      return;
+    }
+
+    // Check if this is a DOCX file
+    if (viewerMimeType !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+      return;
+    }
+
+    let isCancelled = false;
+
+    const renderDocx = async () => {
+      try {
+        // Clear previous content
+        docxContainerRef.current.innerHTML = '';
+        
+        // Render DOCX using docx-preview
+        await renderAsync(viewerBlob, docxContainerRef.current);
+      } catch (error) {
+        if (!isCancelled) {
+          setViewerError(`Failed to render DOCX: ${error.message}`);
+        }
+      }
+    };
+
+    renderDocx();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [viewerBlob, viewerMimeType]);
 
   const handleCloseDialog = () => {
     setDialogOpen(false);
@@ -259,6 +298,12 @@ export default function AssignmentDetailPage() {
                             src={viewerObjectUrl}
                             className="w-full h-[78vh] border-0"
                             aria-label={`PDF document viewer for ${selectedViewerMaterial.name}`}
+                          />
+                        ) : viewerMimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ? (
+                          <div 
+                            ref={docxContainerRef}
+                            className="w-full h-[78vh] overflow-y-auto border rounded p-4"
+                            aria-label={`DOCX document viewer for ${selectedViewerMaterial.name}`}
                           />
                         ) : (
                           <div className="flex flex-col items-center justify-center h-[78vh] p-4 text-center">

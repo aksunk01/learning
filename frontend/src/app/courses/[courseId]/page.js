@@ -356,13 +356,7 @@ export default function CourseDetailsPage() {
                   <div 
                     key={assignment.id} 
                     className={`border rounded-lg p-4 ${assignment.is_completed ? 'opacity-70 bg-muted/50' : ''} cursor-pointer hover:bg-muted/50 transition-colors`}
-                    onClick={(e) => {
-                      // Prevent navigation when clicking on interactive elements
-                      if (e.target.closest('button') || e.target.closest('input')) {
-                        return;
-                      }
-                      handleAssignmentClick(assignment.id);
-                    }}
+                    onClick={() => router.push(`/assignments/${assignment.id}`)}
                   >
                     <div className="flex justify-between items-start">
                       <div>
