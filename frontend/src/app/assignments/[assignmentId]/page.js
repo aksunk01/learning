@@ -2,7 +2,7 @@
 
 import { fetchCourse } from '@/lib/courses-api';
 import { useEffect, useState, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { fetchAssignment, linkAssignmentMaterials, unlinkAssignmentMaterial, updateAssignmentMaterial } from '@/lib/assignments-api';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,10 +19,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { fetchCourseMaterials, fetchCourseMaterialFile } from '@/lib/course-materials-api';
 import { renderAsync } from 'docx-preview';
+import { PageBreadcrumb } from "@/components/navigation/page-breadcrumb";
 
 export default function AssignmentDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [course, setCourse] = useState(null);
   const [assignment, setAssignment] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -259,8 +261,35 @@ export default function AssignmentDetailPage() {
     );
   }
 
+  const isFromDashboard = searchParams.get('from') === 'dashboard';
+  
+  // Build breadcrumb items only after assignment is confirmed to exist
+  let breadcrumbItems = [];
+  
+  if (isFromDashboard) {
+    breadcrumbItems.push(
+      { label: "Dashboard", href: "/dashboard" },
+      { label: "Courses", href: "/courses" }
+    );
+  } else {
+    breadcrumbItems.push(
+      { label: "Courses", href: "/courses" }
+    );
+  }
+  
+  if (course) {
+    breadcrumbItems.push(
+      { label: course.name, href: `/courses/${course.id}` }
+    );
+  }
+  
+  breadcrumbItems.push(
+    { label: assignment.name }
+  );
+
   return (
     <div className="w-full max-w-none  mx-auto p-4 md:p-6 lg:p-8">
+      <PageBreadcrumb items={breadcrumbItems} />
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="text-2xl font-bold">{course?.name ? `${course.name}: ` : ''}

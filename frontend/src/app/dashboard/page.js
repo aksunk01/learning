@@ -54,7 +54,17 @@ export default function DashboardPage() {
 
   // Handle navigation to assignment detail page
   const handleAssignmentClick = (assignmentId) => {
-    router.push(`/assignments/${assignmentId}`);
+    router.push(`/assignments/${assignmentId}?from=dashboard`);
+  };
+
+  // Handle navigation to exam detail page
+  const handleExamClick = (examId) => {
+    router.push(`/assignments/${examId}?from=dashboard`);
+  };
+
+  // Handle navigation to project detail page
+  const handleProjectClick = (projectId) => {
+    router.push(`/assignments/${projectId}?from=dashboard`);
   };
 
   if (isLoading) {
@@ -340,7 +350,7 @@ export default function DashboardPage() {
                     <div 
                       key={exam.id} 
                       className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => handleAssignmentClick(exam.id)}
+                      onClick={() => handleExamClick(exam.id)}
                     >
                       <div>
                         <h3 className="font-medium">{exam.title}</h3>
@@ -386,7 +396,7 @@ export default function DashboardPage() {
                     <div 
                       key={project.id} 
                       className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => handleAssignmentClick(project.id)}
+                      onClick={() => handleProjectClick(project.id)}
                     >
                       <div>
                         <h3 className="font-medium">{project.title}</h3>

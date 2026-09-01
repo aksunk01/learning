@@ -17,6 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { PageBreadcrumb } from "@/components/navigation/page-breadcrumb";
 
 export default function CourseDetailsPage() {
   const [course, setCourse] = useState(null);
@@ -38,7 +39,7 @@ export default function CourseDetailsPage() {
 
   // Handle navigation to assignment detail page
   const handleAssignmentClick = (assignmentId) => {
-    router.push(`/assignments/${assignmentId}`);
+    router.push(`/assignments/${assignmentId}?from=dashboard`);
   };
 
   useEffect(() => {
@@ -258,6 +259,13 @@ export default function CourseDetailsPage() {
     );
   }
 
+  // Build breadcrumb items
+  // Build breadcrumb items
+  const breadcrumbItems = [
+    { label: "Courses", href: "/courses" },
+    { label: course.name }
+  ];
+
   const getStatusBadge = (status, assignment = null) => {
     switch (status) {
       case 'pending':
@@ -291,6 +299,7 @@ export default function CourseDetailsPage() {
 
   return (
     <div className="flex-1 p-6 md:pb-6">
+      <PageBreadcrumb items={breadcrumbItems} />
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Course Details</h1>
       </div>
