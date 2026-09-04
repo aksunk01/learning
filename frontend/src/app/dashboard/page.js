@@ -10,6 +10,7 @@ import { fetchDashboard } from "@/lib/dashboard-api";
 import { useRouter } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { formatWallClockDateShort } from "@/lib/date-helpers";
 
 export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState(null);
@@ -323,7 +324,7 @@ export default function DashboardPage() {
                         ) : null}
                       </div>
                       <Badge variant="secondary">
-                        {assignment.due_at ? new Date(assignment.due_at).toLocaleDateString() : 'No due date'}
+                        {assignment.due_at ? formatWallClockDateShort(assignment.due_at) : 'No due date'}
                       </Badge>
                     </div>
                   );
@@ -369,7 +370,7 @@ export default function DashboardPage() {
                         ) : null}
                       </div>
                       <Badge variant="secondary">
-                        {exam.due_at ? new Date(exam.due_at).toLocaleDateString() : 'No date'}
+                        {exam.due_at ? formatWallClockDateShort(exam.due_at) : 'No date'}
                       </Badge>
                     </div>
                   );
@@ -415,7 +416,7 @@ export default function DashboardPage() {
                         ) : null}
                       </div>
                       <Badge variant="secondary">
-                        {project.due_at ? new Date(project.due_at).toLocaleDateString() : 'No date'}
+                        {project.due_at ? formatWallClockDateShort(project.due_at) : 'No date'}
                       </Badge>
                     </div>
                   );
@@ -467,7 +468,7 @@ export default function DashboardPage() {
                         )}
                         {assignment.due_at && (
                           <Badge variant="secondary" className="mt-1">
-                            Due: {new Date(assignment.due_at).toLocaleDateString()}
+                            Due: {formatWallClockDateShort(assignment.due_at)}
                           </Badge>
                         )}
                       </div>
@@ -495,7 +496,7 @@ export default function DashboardPage() {
                       <div className="flex justify-between items-center">
                         <Badge variant="secondary">{summary.upcoming_count} assignments</Badge>
                         {summary.next_assignment && summary.next_assignment.due_at && (
-                          <span className="text-xs text-muted-foreground">Due: {new Date(summary.next_assignment.due_at).toLocaleDateString()}</span>
+                          <span className="text-xs text-muted-foreground">Due: {formatWallClockDateShort(summary.next_assignment.due_at)}</span>
                         )}
                       </div>
                     </div>
