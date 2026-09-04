@@ -18,6 +18,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { PageBreadcrumb } from "@/components/navigation/page-breadcrumb";
+import {formatWallClockDate, parseWallCloclDate} from "@/lib/date-helpers";
 
 export default function CourseDetailsPage() {
   const [course, setCourse] = useState(null);
@@ -96,9 +97,7 @@ export default function CourseDetailsPage() {
 
   const handleDeleteAssignment = async () => {
     // Prevent default closing behavior of AlertDialogAction
-    if (event) {
-      event.preventDefault();
-    }
+ 
 
     if (!assignmentToDelete) return;
 
@@ -279,9 +278,9 @@ export default function CourseDetailsPage() {
       default:
         // For upcoming assignments (no status but due date in future)
         if (assignment && assignment.due_at) {
-          const dueDate = new Date(assignment.due_at);
+          const dueDate = parseWallClockDate(assignment.due_at);
           const now = new Date();
-          if (dueDate > now) {
+          if (dueDate && dueDate> now) {
             return <span className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-green-900 dark:text-green-300">Upcoming</span>;
           }
         }
@@ -290,12 +289,12 @@ export default function CourseDetailsPage() {
   };
 
   // Sort assignments by due_at (ascending), with null values at the end
-  const sortedAssignments = [...assignments].sort((a, b) => {
-    if (!a.due_at && !b.due_at) return 0;
-    if (!a.due_at) return 1;
-    if (!b.due_at) return -1;
-    return new Date(a.due_at) - new Date(b.due_at);
-  });
+const sortedAssignments = [...assignments].sort((a, b) => {
+  if (!a.due_at && !b.due_at) return 0;
+  if (!a.due_at) return 1;
+  if (!b.due_at) return -1;
+  return a.due_at.localeCompare(b.due_at);
+});
 
   return (
     <div className="flex-1 p-6 md:pb-6">
@@ -403,7 +402,7 @@ export default function CourseDetailsPage() {
                     <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
                       {assignment.due_at && (
                         <div>
-                          <span className="text-muted-foreground">Due:</span> {new Date(assignment.due_at).toLocaleString()}
+                          <span className="text-muted-foreground">Due:</span> { formatWallClockDate(assignment.due_at) }
                         </div>
                       )}
                       {assignment.points != null  && (

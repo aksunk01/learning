@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { fetchCourseMaterials, fetchCourseMaterialFile } from '@/lib/course-materials-api';
 import { renderAsync } from 'docx-preview';
 import { PageBreadcrumb } from "@/components/navigation/page-breadcrumb";
+import { formatWallClockDate } from "@/lib/date-helpers";
 
 export default function AssignmentDetailPage() {
   const params = useParams();
@@ -389,20 +390,13 @@ export default function AssignmentDetailPage() {
                     </div>
                   )}
 
-                  {assignment.due_date && (
+                  {assignment.due_at && (
                     <div>
                       <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
                         Due Date
                       </h3>
                       <p className="text-lg">
-                        {new Date(assignment.due_date).toLocaleDateString('en-US', {
-                          weekday: 'long',
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
+                       {formatWallClockDate(assignment.due_at)}
                       </p>
                     </div>
                   )}

@@ -47,7 +47,7 @@ class Assignment(Base):
     )
 
     due_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
+        DateTime(timezone=False),
         nullable=True
     )
 
