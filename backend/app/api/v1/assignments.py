@@ -20,7 +20,8 @@ from app.schemas.assignment import (
     AssignmentDetailResponse,
     AssignmentMaterialResponse,
     AssignmentMaterialsLinkRequest,
-    AssignmentMaterialUpdate
+    AssignmentMaterialUpdate,
+    AssignmentUpdate
 )
 
 
@@ -484,7 +485,7 @@ def link_assignment_materials(
         .filter(
             AssignmentMaterial.assignment_id == assignment_id,
             AssignmentMaterial.material_id.in_(material_ids)
-        )
+        )   
         .all()
     )
     
@@ -664,3 +665,33 @@ def unlink_assignment_material(assignment_id: UUID, material_id: UUID, db: Sessi
     db.commit()
 
     return None
+
+@router.patch("/{assignment_id}", response_model=AssignmentResponse)
+def update_assignment(assignment_id: UUID, assignment_update: AssignmentUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    "Update an existing assignment's details"
+
+    assignment = (
+        db.query(Assignment)
+        .join(Course)
+        .filter(
+            Assignment.id == assignment_id,
+            Course.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if not assignment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assignment not found"
+        )
+
+    update_data = assignment_update.model_dump(exclude_unset=True)
+
+    for field, value in update_data.items():
+        setattr(assignment, field, value)
+
+    db.commit()
+    db.refresh(assignment)
+
+    return assignment
