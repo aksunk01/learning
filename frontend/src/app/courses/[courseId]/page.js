@@ -19,6 +19,15 @@ import {
 } from "@/components/ui/alert-dialog";
 import { PageBreadcrumb } from "@/components/navigation/page-breadcrumb";
 import {formatWallClockDate, parseWallCloclDate} from "@/lib/date-helpers";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { MoreVertical } from "lucide-react";
+import {EditAssignmentDialog} from "@/components/assignments/edit-assignment-dialog";
+import { Button } from "@/components/ui/button";
 
 export default function CourseDetailsPage() {
   const [course, setCourse] = useState(null);
@@ -33,13 +42,20 @@ export default function CourseDetailsPage() {
   const [assignmentToDelete, setAssignmentToDelete] = useState(null);
   const [deleteError, setDeleteError] = useState("");
   const [togglingCompletionId, setTogglingCompletionId] = useState(null);
+  const [editingAssignment, setEditingAssignment] = useState(null);
+  const [editOpen, setEditOpen] = useState(false);
 
   const params = useParams();
   const router = useRouter();
   const courseId = params.courseId;
 
   // Handle navigation to assignment detail page
-  const handleAssignmentClick = (assignmentId) => {
+  const handleAssignmentClick = (assignmentId, event) => {
+    // Prevent navigation if the click was on the dropdown menu or its items
+    if (event?.target.closest('[data-dropdown-menu]')) {
+      return;
+    }
+    
     router.push(`/assignments/${assignmentId}?from=dashboard`);
   };
 
@@ -93,6 +109,26 @@ export default function CourseDetailsPage() {
       ...currentAssignments,
       createdAssignment,
     ]);
+  };
+
+  const handleEditAssignment = (assignment, event) => {
+    // Prevent the card click from navigating
+    if (event) {
+      event.stopPropagation();
+    }
+    
+    setEditingAssignment(assignment);
+    setEditOpen(true);
+  };
+
+  const handleAssignmentUpdated = (updatedAssignment) => {
+    setAssignments(current =>
+      current.map(item =>
+        item.id === updatedAssignment.id
+          ? { ...item, ...updatedAssignment }
+          : item
+      )
+    );
   };
 
   const handleDeleteAssignment = async () => {
@@ -299,6 +335,12 @@ const sortedAssignments = [...assignments].sort((a, b) => {
   return (
     <div className="flex-1 p-6 md:pb-6">
       <PageBreadcrumb items={breadcrumbItems} />
+      <EditAssignmentDialog
+        assignment={editingAssignment}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        onUpdated={handleAssignmentUpdated}
+      />
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Course Details</h1>
       </div>
@@ -364,7 +406,7 @@ const sortedAssignments = [...assignments].sort((a, b) => {
                   <div 
                     key={assignment.id} 
                     className={`border rounded-lg p-4 ${assignment.is_completed ? 'opacity-70 bg-muted/50' : ''} cursor-pointer hover:bg-muted/50 transition-colors`}
-                    onClick={() => router.push(`/assignments/${assignment.id}`)}
+                    onClick={(e) => handleAssignmentClick(assignment.id, e)}
                   >
                     <div className="flex justify-between items-start">
                       <div>
@@ -373,29 +415,70 @@ const sortedAssignments = [...assignments].sort((a, b) => {
                           <p className="text-sm text-muted-foreground mt-1">{assignment.assignment_type}</p>
                         )}
                       </div>
-                      <div className="flex space-x-2">
+                      <div className="flex items-center space-x-2">
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleAssignmentCompletion(assignment.id, !assignment.is_completed);
+                            handleAssignmentCompletion(
+                              assignment.id,
+                              !assignment.is_completed
+                            );
                           }}
                           disabled={togglingCompletionId === assignment.id}
-                          className={`text-sm font-medium ${assignment.is_completed ? 'text-gray-500 hover:text-gray-700' : 'text-primary hover:text-primary/80'}`}
+                          className={`text-sm font-medium ${
+                            assignment.is_completed
+                              ? "text-gray-500 hover:text-gray-700"
+                              : "text-primary hover:text-primary/80"
+                          }`}
                         >
-                          {togglingCompletionId === assignment.id ? 'Updating...' : assignment.is_completed ? 'Mark Incomplete' : 'Mark Complete'}
+                          {togglingCompletionId === assignment.id
+                            ? "Updating..."
+                            : assignment.is_completed
+                              ? "Mark Incomplete"
+                              : "Mark Complete"}
                         </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            confirmDeleteAssignment(assignment);
-                          }}
-                          disabled={deletingAssignmentId === assignment.id}
-                          className="text-destructive hover:text-destructive/80 text-sm font-medium"
-                        >
-                          {deletingAssignmentId === assignment.id ? "Deleting..." : "Delete"}
-                        </button>
+
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAssignmentClick(assignment.id, e);
+                              }}
+                            >
+                              View 
+                            </DropdownMenuItem>
+
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditAssignment(assignment, e);
+                              }}
+                            >
+                              Edit 
+                            </DropdownMenuItem>
+
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                confirmDeleteAssignment(assignment);
+                              }}
+                            >
+                              Delete 
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                     
