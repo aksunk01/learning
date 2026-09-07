@@ -21,6 +21,8 @@ import { fetchCourseMaterials, fetchCourseMaterialFile } from '@/lib/course-mate
 import { renderAsync } from 'docx-preview';
 import { PageBreadcrumb } from "@/components/navigation/page-breadcrumb";
 import { formatWallClockDate } from "@/lib/date-helpers";
+import { Edit as EditIcon } from "lucide-react";
+import { EditAssignmentDialog } from "@/components/assignments/edit-assignment-dialog";
 
 export default function AssignmentDetailPage() {
   const params = useParams();
@@ -49,6 +51,7 @@ export default function AssignmentDetailPage() {
   const [makePrimaryError, setMakePrimaryError] = useState('');
   const docxContainerRef = useRef(null);
   const [viewerBlob, setViewerBlob] = useState(null);
+  const [editOpen, setEditOpen] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
@@ -125,6 +128,13 @@ export default function AssignmentDetailPage() {
     } finally {
       setMaterialsLoading(false);
     }
+  };
+
+  const handleAssignmentUpdated = (updatedAssignment) => {
+    setAssignment((currentAssignment) => ({
+      ...currentAssignment,
+      ...updatedAssignment
+    }));
   };
   // Load and display the selected material
   useEffect(() => {
@@ -292,9 +302,25 @@ export default function AssignmentDetailPage() {
     <div className="w-full max-w-none  mx-auto p-4 md:p-6 lg:p-8">
       <PageBreadcrumb items={breadcrumbItems} />
       <Card className="mb-6">
+        <EditAssignmentDialog
+          assignment={assignment}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          onUpdated={handleAssignmentUpdated}
+        />
         <CardHeader>
-          <CardTitle className="text-2xl font-bold">{course?.name ? `${course.name}: ` : ''}
-             {assignment.title}</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-2xl font-bold">{course?.name ? `${course.name}: ` : ''}
+               {assignment.title}</CardTitle>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setEditOpen(true)}
+            >
+              <EditIcon className="h-4 w-4 mr-2" />
+              Edit
+            </Button>
+          </div>
         </CardHeader>
           <CardContent>
             <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 xl:gap-10">

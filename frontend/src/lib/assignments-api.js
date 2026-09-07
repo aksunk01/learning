@@ -235,3 +235,37 @@ export async function updateAssignmentCompletion(assignmentId, isCompleted, toke
   
   return response.json();
 }
+
+export async function updateAssignment(courseId, assignmentId, assignmentData, token) {
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  
+  if (!baseUrl) {
+    throw new Error('NEXT_PUBLIC_API_BASE_URL environment variable is not set');
+  }
+  
+  const response = await fetch(`${baseUrl}/api/v1/courses/${courseId}/assignments/${assignmentId}`, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(assignmentData)
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const error = new Error(`Failed to update assignment: ${response.status}`);
+    error.status = response.status;
+    if (errorData.detail) {
+      // Handle FastAPI validation errors which can be an array
+      if (Array.isArray(errorData.detail)) {
+        error.message = `${error.message} - ${errorData.detail.map(d => d.msg).join(', ')}`;
+      } else {
+        error.message = `${error.message} - ${errorData.detail}`;
+      }
+    }
+    throw error;
+  }
+  
+  return response.json();
+}
