@@ -31,3 +31,4 @@ __pycache__/
 
 #Backups folder
 backups/
+backend/venv/
