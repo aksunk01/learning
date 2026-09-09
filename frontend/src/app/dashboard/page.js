@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { formatWallClockDateShort } from "@/lib/date-helpers";
+import { SemesterProgress } from "@/components/semester-progress";
 
 export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState(null);
@@ -254,6 +255,8 @@ export default function DashboardPage() {
         </div>
         <ThemeToggle />
       </div>
+
+      <SemesterProgress />
 
       {/* Summary Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
