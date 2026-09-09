@@ -377,6 +377,13 @@ const sortedAssignments = [...assignments].sort((a, b) => {
           </button>
           <button
             type="button"
+            className={`py-2 px-4 font-medium text-sm ${activeView === 'completed' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setActiveView('completed')}
+          >
+            Completed
+          </button>
+          <button
+            type="button"
             className={`py-2 px-4 font-medium text-sm ${activeView === 'documents' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
             onClick={() => setActiveView('documents')}
           >
@@ -398,115 +405,219 @@ const sortedAssignments = [...assignments].sort((a, b) => {
               />
             </div>
             
-            {sortedAssignments.length === 0 ? (
-              <p className="text-muted-foreground">No assignments found for this course.</p>
+            {sortedAssignments.filter(a => !a.is_completed).length === 0 ? (
+              <p className="text-muted-foreground">No incomplete assignments found for this course.</p>
             ) : (
               <div className="space-y-4">
-                {sortedAssignments.map((assignment) => (
-                  <div 
-                    key={assignment.id} 
-                    className={`border rounded-lg p-4 ${assignment.is_completed ? 'opacity-70 bg-muted/50' : ''} cursor-pointer hover:bg-muted/50 transition-colors`}
-                    onClick={(e) => handleAssignmentClick(assignment.id, e)}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className={`font-medium ${assignment.is_completed ? 'line-through' : ''}`}>{assignment.title}</h4>
-                        {assignment.assignment_type && (
-                          <p className="text-sm text-muted-foreground mt-1">{assignment.assignment_type}</p>
+                {sortedAssignments
+                  .filter(assignment => !assignment.is_completed)
+                  .map((assignment) => (
+                    <div 
+                      key={assignment.id} 
+                      className={`border rounded-lg p-4 cursor-pointer hover:bg-muted/50 transition-colors`}
+                      onClick={(e) => handleAssignmentClick(assignment.id, e)}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-medium">{assignment.title}</h4>
+                          {assignment.assignment_type && (
+                            <p className="text-sm text-muted-foreground mt-1">{assignment.assignment_type}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAssignmentCompletion(
+                                assignment.id,
+                                true
+                              );
+                            }}
+                            disabled={togglingCompletionId === assignment.id}
+                            className={`text-sm font-medium text-primary hover:text-primary/80`}
+                          >
+                            {togglingCompletionId === assignment.id
+                              ? "Updating..."
+                              : "Mark Complete"}
+                          </button>
+
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAssignmentClick(assignment.id, e);
+                                }}
+                              >
+                                View 
+                              </DropdownMenuItem>
+
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditAssignment(assignment, e);
+                                }}
+                              >
+                                Edit 
+                              </DropdownMenuItem>
+
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  confirmDeleteAssignment(assignment);
+                                }}
+                              >
+                                Delete 
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                        {assignment.due_at && (
+                          <div>
+                            <span className="text-muted-foreground">Due:</span> { formatWallClockDate(assignment.due_at) }
+                          </div>
+                        )}
+                        {assignment.points != null  && (
+                          <div>
+                            <span className="text-muted-foreground">Points:</span> {assignment.points}
+                          </div>
+                        )}
+                        {assignment.weight_percent != null && (
+                          <div>
+                            <span className="text-muted-foreground">Weight:</span> {assignment.weight_percent}%
+                          </div>
                         )}
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleAssignmentCompletion(
-                              assignment.id,
-                              !assignment.is_completed
-                            );
-                          }}
-                          disabled={togglingCompletionId === assignment.id}
-                          className={`text-sm font-medium ${
-                            assignment.is_completed
-                              ? "text-gray-500 hover:text-gray-700"
-                              : "text-primary hover:text-primary/80"
-                          }`}
-                        >
-                          {togglingCompletionId === assignment.id
-                            ? "Updating..."
-                            : assignment.is_completed
-                              ? "Mark Incomplete"
-                              : "Mark Complete"}
-                        </button>
-
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleAssignmentClick(assignment.id, e);
-                              }}
-                            >
-                              View 
-                            </DropdownMenuItem>
-
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEditAssignment(assignment, e);
-                              }}
-                            >
-                              Edit 
-                            </DropdownMenuItem>
-
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                confirmDeleteAssignment(assignment);
-                              }}
-                            >
-                              Delete 
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
                     </div>
-                    
-                    <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
-                      {assignment.due_at && (
+                  ))}
+              </div>
+            )}
+          </div>
+        ) : activeView === 'completed' ? (
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-semibold">Completed</h3>
+            </div>
+            
+            {sortedAssignments.filter(a => a.is_completed).length === 0 ? (
+              <p className="text-muted-foreground">No completed assignments found for this course.</p>
+            ) : (
+              <div className="space-y-4">
+                {sortedAssignments
+                  .filter(assignment => assignment.is_completed)
+                  .map((assignment) => (
+                    <div 
+                      key={assignment.id} 
+                      className="border rounded-lg p-4 opacity-70 bg-muted/50 cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={(e) => handleAssignmentClick(assignment.id, e)}
+                    >
+                      <div className="flex justify-between items-start">
                         <div>
-                          <span className="text-muted-foreground">Due:</span> { formatWallClockDate(assignment.due_at) }
+                          <h4 className="font-medium line-through">{assignment.title}</h4>
+                          {assignment.assignment_type && (
+                            <p className="text-sm text-muted-foreground mt-1">{assignment.assignment_type}</p>
+                          )}
                         </div>
-                      )}
-                      {assignment.points != null  && (
-                        <div>
-                          <span className="text-muted-foreground">Points:</span> {assignment.points}
+                        <div className="flex items-center space-x-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAssignmentCompletion(
+                                assignment.id,
+                                false
+                              );
+                            }}
+                            disabled={togglingCompletionId === assignment.id}
+                            className={`text-sm font-medium text-gray-500 hover:text-gray-700`}
+                          >
+                            {togglingCompletionId === assignment.id
+                              ? "Updating..."
+                              : "Mark Incomplete"}
+                          </button>
+
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAssignmentClick(assignment.id, e);
+                                }}
+                              >
+                                View 
+                              </DropdownMenuItem>
+
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditAssignment(assignment, e);
+                                }}
+                              >
+                                Edit 
+                              </DropdownMenuItem>
+
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  confirmDeleteAssignment(assignment);
+                                }}
+                              >
+                                Delete 
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
-                      )}
-                      {assignment.weight_percent != null && (
-                        <div>
-                          <span className="text-muted-foreground">Weight:</span> {assignment.weight_percent}%
+                      </div>
+                      
+                      <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                        {assignment.due_at && (
+                          <div>
+                            <span className="text-muted-foreground">Due:</span> { formatWallClockDate(assignment.due_at) }
+                          </div>
+                        )}
+                        {assignment.points != null  && (
+                          <div>
+                            <span className="text-muted-foreground">Points:</span> {assignment.points}
+                          </div>
+                        )}
+                        {assignment.weight_percent != null && (
+                          <div>
+                            <span className="text-muted-foreground">Weight:</span> {assignment.weight_percent}%
+                          </div>
+                        )}
+                      </div>
+                      
+                      {assignment.is_completed && assignment.completed_at && (
+                        <div className="mt-2 text-xs text-muted-foreground">
+                          Completed: {new Date(assignment.completed_at).toLocaleString()}
                         </div>
                       )}
                     </div>
-                    
-                    {assignment.is_completed && assignment.completed_at && (
-                      <div className="mt-2 text-xs text-muted-foreground">
-                        Completed: {new Date(assignment.completed_at).toLocaleString()}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  ))}
               </div>
             )}
           </div>
