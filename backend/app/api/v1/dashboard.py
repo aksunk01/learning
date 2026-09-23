@@ -1,5 +1,5 @@
 from uuid import UUID
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone, timedelta
 
@@ -39,21 +39,22 @@ def build_daily_workload(assignments):
         for day, count in sorted(counts.items())
     ]
 
-def build_course_summaries(db: Session, user_id: UUID):
+def build_course_summaries(db: Session, user_id: UUID, semester_id: UUID | None = None):
     now = datetime.now(timezone.utc)
 
-    courses = (
+    courses_query = (
         db.query(Course)
         .filter(
             Course.user_id == user_id
         )
-        .order_by(
-            Course.name.asc()
-        )
-        .all()
     )
 
-    upcoming_assignments = (
+    if semester_id is not None:
+        courses_query = courses_query.filter(Course.semester_id == semester_id)
+
+    courses = courses_query.order_by(Course.name.asc()).all()
+
+    upcoming_assignments_query = (
         db.query(Assignment)
         .join(
             Course,
@@ -63,11 +64,12 @@ def build_course_summaries(db: Session, user_id: UUID):
             Course.user_id == user_id,
             Assignment.due_at >= now
         )
-        .order_by(
-            Assignment.due_at.asc()
-        )
-        .all()
     )
+
+    if semester_id is not None:
+        upcoming_assignments_query = upcoming_assignments_query.filter(Course.semester_id == semester_id)
+
+    upcoming_assignments = upcoming_assignments_query.order_by(Assignment.due_at.asc()).all()
 
     assignments_by_course = {}
 
@@ -91,7 +93,7 @@ def build_course_summaries(db: Session, user_id: UUID):
             "course_id": course.id,
             "course_name": course.name,
             "course_code": course.code,
-            "semester": course.semester,
+            "semester": course.semester.name if course.semester else None,
             "upcoming_count": len(course_assignments),
             "next_assignment": (
                 course_assignments[0]
@@ -104,18 +106,20 @@ def build_course_summaries(db: Session, user_id: UUID):
 
 
 @router.get("", response_model=DashboardResponse)
-def get_dashboard(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_dashboard(semester_id: UUID | None = Query(default=None), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     now = datetime.now(timezone.utc)
     seven_days_from_now = now + timedelta(days=7)
 
     upcoming = query_upcoming_assignments(
         db=db,
         user_id=current_user.id,
+        semester_id=semester_id,
     )
 
     overdue = query_overdue_assignments(
         db=db,
         user_id=current_user.id,
+        semester_id=semester_id,
     )
 
     due_next_7_days = query_assignments_in_range(
@@ -123,19 +127,21 @@ def get_dashboard(db: Session = Depends(get_db), current_user: User = Depends(ge
         user_id=current_user.id,
         start_at=now,
         end_at=seven_days_from_now,
+        semester_id=semester_id,
     )
 
     upcoming_by_course = query_upcoming_counts_by_course(
         db = db,
-        user_id = current_user.id
+        user_id = current_user.id,
+        semester_id=semester_id,
     )
 
     workload_next_7_days = build_daily_workload(due_next_7_days)
 
-    course_summaries = build_course_summaries(db=db, user_id=current_user.id)
+    course_summaries = build_course_summaries(db=db, user_id=current_user.id, semester_id=semester_id)
 
     # Query all upcoming exams and projects
-    upcoming_exams = (
+    upcoming_exams_query = (
         db.query(Assignment)
         .join(
             Course,
@@ -147,13 +153,14 @@ def get_dashboard(db: Session = Depends(get_db), current_user: User = Depends(ge
             Assignment.assignment_type == "exam",
             Assignment.is_completed == False
         )
-        .order_by(
-            Assignment.due_at.asc()
-        )
-        .all()
     )
 
-    upcoming_projects = (
+    if semester_id is not None:
+        upcoming_exams_query = upcoming_exams_query.filter(Course.semester_id == semester_id)
+
+    upcoming_exams = upcoming_exams_query.order_by(Assignment.due_at.asc()).all()
+
+    upcoming_projects_query = (
         db.query(Assignment)
         .join(
             Course,
@@ -165,17 +172,19 @@ def get_dashboard(db: Session = Depends(get_db), current_user: User = Depends(ge
             Assignment.assignment_type == "project",
             Assignment.is_completed == False
         )
-        .order_by(
-            Assignment.due_at.asc()
-        )
-        .all()
     )
+
+    if semester_id is not None:
+        upcoming_projects_query = upcoming_projects_query.filter(Course.semester_id == semester_id)
+
+    upcoming_projects = upcoming_projects_query.order_by(Assignment.due_at.asc()).all()
 
     # Query completed assignments
     completed = query_completed_assignments(
         db=db,
         user_id=current_user.id,
-        limit=20
+        limit=20,
+        semester_id=semester_id,
     )
 
     # Derive backward-compatible singular fields from the lists
@@ -193,7 +202,8 @@ def get_dashboard(db: Session = Depends(get_db), current_user: User = Depends(ge
         "counts": {
             "upcoming": query_upcoming_assignment_count(
                 db=db,
-                user_id=current_user.id
+                user_id=current_user.id,
+                semester_id=semester_id,
             ),
             "overdue": len(overdue),
             "due_next_7_days": len(due_next_7_days),

@@ -17,7 +17,6 @@ import {
   Field,
   FieldGroup,
   FieldLabel,
-  FieldDescription,
   FieldError,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -25,13 +24,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { PlusIcon } from "lucide-react";
 import { createCourse } from "@/lib/courses-api";
+import { SemesterSelect } from "@/components/courses/semester-select";
 
 // Define the validation schema
 const courseSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
   code: z.string().trim().min(1, "Code is required"),
   description: z.string().optional().nullable(),
-  semester: z.string().optional().nullable(),
+  semester_id: z.string().optional().nullable(),
 });
 
 export function CreateCourseDialog({ token, onCourseCreated }) {
@@ -45,7 +45,7 @@ export function CreateCourseDialog({ token, onCourseCreated }) {
       name: "",
       code: "",
       description: "",
-      semester: "",
+      semester_id: null,
     },
   });
 
@@ -58,7 +58,7 @@ export function CreateCourseDialog({ token, onCourseCreated }) {
       name: data.name.trim(),
       code: data.code.trim(),
       description: data.description?.trim() || null,
-      semester: data.semester?.trim() || null,
+      semester_id: data.semester_id || null,
     };
 
     try {
@@ -132,13 +132,16 @@ export function CreateCourseDialog({ token, onCourseCreated }) {
               <FieldError>{form.formState.errors.description?.message}</FieldError>
             </Field>
             
-            <Field name="semester">
+            <Field name="semester_id">
               <FieldLabel>Semester</FieldLabel>
-              <Input 
-                placeholder="Semester (e.g. Fall 2023)" 
-                {...form.register("semester")} 
+              <SemesterSelect
+                token={token}
+                value={form.watch("semester_id")}
+                onChange={(semesterId) =>
+                  form.setValue("semester_id", semesterId, { shouldValidate: true })
+                }
               />
-              <FieldError>{form.formState.errors.semester?.message}</FieldError>
+              <FieldError>{form.formState.errors.semester_id?.message}</FieldError>
             </Field>
           </FieldGroup>
           

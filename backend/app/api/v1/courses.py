@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.dependencies import get_db
 from app.models.course import Course
+from app.models.semester import Semester
 from app.models.user import User
 from app.schemas.course import CourseCreate, CourseResponse, CourseUpdate
 from app.api.auth import get_current_user
@@ -15,6 +16,15 @@ router = APIRouter(
     tags=['Courses']
 )
 
+def validate_semester_ownership(semester_id: UUID | None, db: Session, user_id: UUID) -> None:
+    if semester_id is None:
+        return
+
+    semester = db.query(Semester).filter(Semester.id == semester_id, Semester.user_id == user_id).first()
+
+    if semester is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Semester not found")
+
 @router.post(
     "",
     response_model=CourseResponse,
@@ -22,11 +32,13 @@ router = APIRouter(
 )
 
 def create_course(course_data: CourseCreate, db:Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    validate_semester_ownership(course_data.semester_id, db, current_user.id)
+
     course = Course(
         name=course_data.name,
         code=course_data.code,
         description=course_data.description,
-        semester=course_data.semester,
+        semester_id=course_data.semester_id,
         schedule=course_data.schedule.model_dump() if course_data.schedule else None,
         user_id=current_user.id
          )
@@ -62,10 +74,12 @@ def update_course(course_id: UUID, course_data: CourseUpdate, db: Session = Depe
     if course is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
 
-    
     update_data = course_data.model_dump(
         exclude_unset=True
     )
+
+    if "semester_id" in update_data:
+        validate_semester_ownership(update_data["semester_id"], db, current_user.id)
 
     for field, value in update_data.items():
         setattr(course, field, value)

@@ -3,7 +3,7 @@ from datetime import datetime, timezone, time, date
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session, relationship, selectinload
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import func
 
 from app.api.auth import get_current_user
@@ -38,7 +38,7 @@ all_assignments_router = APIRouter(
     tags=["Assignments"]
 )
 
-def query_upcoming_assignments(db: Session, user_id: UUID, limit: int | None = None) -> list[Assignment]:
+def query_upcoming_assignments(db: Session, user_id: UUID, limit: int | None = None, semester_id: UUID | None = None) -> list[Assignment]:
     now = datetime.now(timezone.utc)
 
     query = (
@@ -57,15 +57,18 @@ def query_upcoming_assignments(db: Session, user_id: UUID, limit: int | None = N
         )
     )
 
+    if semester_id is not None:
+        query = query.filter(Course.semester_id == semester_id)
+
     if limit is not None:
         query = query.limit(limit)
 
     return query.all()
 
-def query_overdue_assignments(db: Session, user_id: UUID)-> list[Assignment]:
+def query_overdue_assignments(db: Session, user_id: UUID, semester_id: UUID | None = None)-> list[Assignment]:
     now = datetime.now(timezone.utc)
 
-    return(
+    query = (
         db.query(Assignment)
         .join(
             Course,
@@ -79,52 +82,14 @@ def query_overdue_assignments(db: Session, user_id: UUID)-> list[Assignment]:
         .order_by(
             Assignment.due_at.desc()
         )
-        .all()
     )
 
-def query_next_exam(db: Session, user_id: UUID) -> Assignment | None:
-    now = datetime.now(timezone.utc)
+    if semester_id is not None:
+        query = query.filter(Course.semester_id == semester_id)
 
-    return(
-        db.query(Assignment)
-        .join(
-            Course,
-            Assignment.course_id == Course.id
-        )
-        .filter(
-            Course.user_id == user_id,
-            Assignment.due_at >= now,
-            Assignment.assignment_type == "exam",
-            Assignment.is_completed == False
-        )
-        .order_by(
-            Assignment.due_at.asc()
-        )
-        .first()
-    )
+    return query.all()
 
-def query_next_project(db: Session, user_id: UUID) -> Assignment | None:
-    now = datetime.now(timezone.utc)
-
-    return(
-        db.query(Assignment)
-        .join(
-            Course,
-            Assignment.course_id == Course.id
-        )
-        .filter(
-            Course.user_id == user_id,
-            Assignment.due_at >= now,
-            Assignment.assignment_type == "project",
-            Assignment.is_completed == False
-        )
-        .order_by(
-            Assignment.due_at.asc()
-        )
-        .first()
-    )
-
-def query_assignments_in_range(db: Session, user_id: UUID, start_at: datetime | None = None, end_at: datetime | None = None, course_id: UUID | None = None) -> list[Assignment]:
+def query_assignments_in_range(db: Session, user_id: UUID, start_at: datetime | None = None, end_at: datetime | None = None, course_id: UUID | None = None, semester_id: UUID | None = None) -> list[Assignment]:
     query = (
         db.query(Assignment)
         .join(
@@ -140,6 +105,11 @@ def query_assignments_in_range(db: Session, user_id: UUID, start_at: datetime | 
     if course_id is not None:
         query = query.filter(
             Assignment.course_id == course_id
+        )
+
+    if semester_id is not None:
+        query = query.filter(
+            Course.semester_id == semester_id
         )
 
     if start_at is not None:
@@ -161,10 +131,10 @@ def query_assignments_in_range(db: Session, user_id: UUID, start_at: datetime | 
 
     )
 
-def query_upcoming_assignment_count(db: Session, user_id: UUID) -> int:
+def query_upcoming_assignment_count(db: Session, user_id: UUID, semester_id: UUID | None = None) -> int:
     now = datetime.now(timezone.utc)
 
-    return(
+    query = (
         db.query(func.count(Assignment.id))
         .join(
             Course,
@@ -175,13 +145,17 @@ def query_upcoming_assignment_count(db: Session, user_id: UUID) -> int:
             Assignment.due_at >= now,
             Assignment.is_completed == False
         )
-        .scalar()
     )
 
-def query_upcoming_counts_by_course(db: Session, user_id: UUID):
+    if semester_id is not None:
+        query = query.filter(Course.semester_id == semester_id)
+
+    return query.scalar()
+
+def query_upcoming_counts_by_course(db: Session, user_id: UUID, semester_id: UUID | None = None):
     now = datetime.now(timezone.utc)
 
-    return(
+    query = (
         db.query(
             Course.id.label("course_id"),
             Course.name.label("course_name"),
@@ -197,6 +171,13 @@ def query_upcoming_counts_by_course(db: Session, user_id: UUID):
             Assignment.due_at >= now,
             Assignment.is_completed == False
         )
+    )
+
+    if semester_id is not None:
+        query = query.filter(Course.semester_id == semester_id)
+
+    return(
+        query
         .group_by(
             Course.id,
             Course.name,
@@ -321,9 +302,9 @@ def get_overdue_assignment(db: Session = Depends(get_db), current_user: User = D
     )
 
 
-def query_completed_assignments(db: Session, user_id: UUID, limit: int = 20) -> list[Assignment]:
+def query_completed_assignments(db: Session, user_id: UUID, limit: int = 20, semester_id: UUID | None = None) -> list[Assignment]:
     """Query completed assignments for a user, ordered by completion date descending."""
-    return (
+    query = (
         db.query(Assignment)
         .join(
             Course,
@@ -336,9 +317,12 @@ def query_completed_assignments(db: Session, user_id: UUID, limit: int = 20) -> 
         .order_by(
             Assignment.completed_at.desc().nullslast()
         )
-        .limit(limit)
-        .all()
     )
+
+    if semester_id is not None:
+        query = query.filter(Course.semester_id == semester_id)
+
+    return query.limit(limit).all()
 
 @all_assignments_router.delete("/{assignment_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_assignment(assignment_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

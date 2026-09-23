@@ -38,9 +38,11 @@ class Course(Base):
         nullable=True,
     )
 
-    semester: Mapped[str | None] = mapped_column(
-        String(100),
+    semester_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("semesters.id", ondelete="SET NULL"),
         nullable=True,
+        index=True,
     )
 
     schedule: Mapped[dict | None] = mapped_column(
@@ -50,6 +52,11 @@ class Course(Base):
 
     user = relationship(
         "User",
+        back_populates="courses",
+    )
+
+    semester = relationship(
+        "Semester",
         back_populates="courses",
     )
 

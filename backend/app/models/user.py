@@ -36,3 +36,9 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan"
     )
+
+    semesters = relationship(
+        "Semester",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )

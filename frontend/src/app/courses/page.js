@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { fetchCourses } from "@/lib/courses-api";
 import { CreateCourseDialog } from "@/components/courses/create-course-dialog";
+import { SemesterHeading } from "@/components/semesters/semester-heading";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
@@ -11,6 +12,7 @@ import Link from "next/link";
 
 export default function CoursesPage() {
   const [courses, setCourses] = useState([]);
+  const [selectedSemesterId, setSelectedSemesterId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const router = useRouter();
@@ -19,20 +21,20 @@ export default function CoursesPage() {
 
   useEffect(() => {
     const storedToken = localStorage.getItem("access_token");
-    
+
     if (!storedToken) {
       // Redirect to login page if no token
       router.push("/login");
       return;
     }
-    
 
-    
+
+
     const fetchCoursesData = async () => {
       try {
-        const data = await fetchCourses(storedToken);
+        const coursesData = await fetchCourses(storedToken);
         setToken(storedToken)
-        setCourses(data);
+        setCourses(coursesData);
       } catch (err) {
         if (err.message.includes("401") || err.message.includes("403")) {
           // Authentication error
@@ -53,9 +55,14 @@ export default function CoursesPage() {
     setCourses((currentCourses) => [...currentCourses, createdCourse]);
   };
 
+  const visibleCourses = useMemo(() => {
+    if (!selectedSemesterId) return courses;
+    return courses.filter((course) => course.semester_id === selectedSemesterId);
+  }, [courses, selectedSemesterId]);
+
   if (isLoading) {
     return (
-      <div className="flex-1 p-6 md:pb-6">
+      <div className="flex-1 p-6 pb-24 md:pb-6">
         <div className="mb-8 flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Courses</h1>
@@ -88,7 +95,7 @@ export default function CoursesPage() {
 
   if (error) {
     return (
-      <div className="flex-1 p-6 md:pb-6">
+      <div className="flex-1 p-6 pb-24 md:pb-6">
         <div className="mb-8 flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Courses</h1>
@@ -107,26 +114,30 @@ export default function CoursesPage() {
   }
 
   return (
-    <div className="flex-1 p-6 md:pb-6">
+    <div className="flex-1 p-6 pb-24 md:pb-6">
       <div className="mb-8 flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Courses</h1>
+          <SemesterHeading
+            token={token}
+            value={selectedSemesterId}
+            onChange={setSelectedSemesterId}
+          />
           <p className="text-muted-foreground mt-2">
             Manage your academic courses
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <CreateCourseDialog 
-            token={token} 
-            onCourseCreated={handleCourseCreated} 
+          <CreateCourseDialog
+            token={token}
+            onCourseCreated={handleCourseCreated}
           />
           <ThemeToggle />
         </div>
       </div>
-      
-      {courses && courses.length > 0 ? (
+
+      {visibleCourses && visibleCourses.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {courses.map((course) => (
+          {visibleCourses.map((course) => (
             <Link href={`/courses/${course.id}`} key={course.id}>
               <Card className="cursor-pointer hover:shadow-md transition-shadow">
                 <CardHeader>
@@ -135,7 +146,7 @@ export default function CoursesPage() {
                 <CardContent>
                   <p className="text-muted-foreground mb-1">Code: {course.code}</p>
                   {course.semester && (
-                    <p className="text-muted-foreground mb-1">Semester: {course.semester}</p>
+                    <p className="text-muted-foreground mb-1">Semester: {course.semester.name}</p>
                   )}
                   {course.description && (
                     <p className="text-muted-foreground">{course.description}</p>
@@ -148,7 +159,11 @@ export default function CoursesPage() {
       ) : (
         <div className="bg-card border rounded-lg p-6 text-center">
           <h2 className="text-xl font-semibold mb-2">No courses found</h2>
-          <p className="text-muted-foreground mb-4">Get started by creating your first course.</p>
+          <p className="text-muted-foreground mb-4">
+            {selectedSemesterId
+              ? "No courses are assigned to this semester yet."
+              : "Get started by creating your first course."}
+          </p>
         </div>
       )}
     </div>

@@ -123,7 +123,7 @@ class CourseMaterialProcessingService:
             # Build optional course context for assignment extraction.
             course_context_parts = [
                 material.course.code,
-                material.course.semester,
+                material.course.semester.name if material.course.semester else None,
             ]
 
             course_context = ", ".join(

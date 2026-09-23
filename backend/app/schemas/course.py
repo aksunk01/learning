@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
+from app.schemas.semester import SemesterResponse
+
 class CourseMeeting(BaseModel):
     days: list[Literal[
         "monday",
@@ -57,7 +59,7 @@ class CourseBase(BaseModel):
     name: str
     code: str
     description: str | None = None
-    semester: str | None = None
+    semester_id: uuid.UUID | None = None
     schedule: CourseSchedule | None = None
 
 
@@ -68,7 +70,7 @@ class CourseUpdate(CourseBase):
     name: str | None = None
     code: str | None = None
     description: str | None = None
-    semester: str | None = None
+    semester_id: uuid.UUID | None = None
     schedule: CourseSchedule | None = None
 
 
@@ -76,3 +78,4 @@ class CourseResponse(CourseBase):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
     user_id: uuid.UUID
+    semester: SemesterResponse | None = None
