@@ -1,6 +1,8 @@
+import json
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api.auth import get_current_user
@@ -16,8 +18,8 @@ router = APIRouter(
     tags=["RAG"]
 )
 
-@router.post("/ask",response_model=CourseQuestionResponse)
-def ask_course(course_id: UUID, request: CourseQuestionRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+
+def _get_owned_course(course_id: UUID, db: Session, current_user: User) -> Course:
     course = (
         db.query(Course)
         .filter(
@@ -32,6 +34,13 @@ def ask_course(course_id: UUID, request: CourseQuestionRequest, db: Session = De
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Course not found"
         )
+
+    return course
+
+
+@router.post("/ask",response_model=CourseQuestionResponse)
+def ask_course(course_id: UUID, request: CourseQuestionRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _get_owned_course(course_id, db, current_user)
 
     service = RAGService()
 
@@ -48,3 +57,25 @@ def ask_course(course_id: UUID, request: CourseQuestionRequest, db: Session = De
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to answer course question: {e}"
         )
+
+
+@router.post("/ask/stream")
+def ask_course_stream(course_id: UUID, request: CourseQuestionRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _get_owned_course(course_id, db, current_user)
+
+    service = RAGService()
+
+    def event_stream():
+        try:
+            for event in service.ask_course_stream(
+                db=db,
+                user_id=current_user.id,
+                course_id=course_id,
+                question=request.question,
+                limit=request.limit
+            ):
+                yield json.dumps(event) + "\n"
+        except Exception as e:
+            yield json.dumps({"type": "error", "message": str(e)}) + "\n"
+
+    return StreamingResponse(event_stream(), media_type="application/x-ndjson")
