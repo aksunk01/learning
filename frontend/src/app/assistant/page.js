@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { fetchCourses } from "@/lib/courses-api";
 import { useRouter } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
-import { askCourseQuestion } from "@/lib/assistant-api";
+import { askCourseQuestionStream } from "@/lib/assistant-api";
 import { ArrowUp } from "lucide-react";
 
 export default function AssistantPage() {
@@ -35,25 +35,38 @@ export default function AssistantPage() {
       role: "user",
       content: trimmedInput
     };
-    
+
+    const assistantMessageId = `${Date.now()}-assistant`;
+
     setMessages(prevMessages => [...prevMessages, newUserMessage]);
     setInputValue("");
     setIsGenerating(true);
     setChatError("");
-    
+
     const token = localStorage.getItem("access_token");
-    
+    let assistantMessageAdded = false;
+
+    const upsertAssistantMessage = (updates) => {
+      setMessages(prevMessages => {
+        if (!assistantMessageAdded) {
+          assistantMessageAdded = true;
+          return [
+            ...prevMessages,
+            { id: assistantMessageId, role: "assistant", content: "", sources: [], ...updates }
+          ];
+        }
+
+        return prevMessages.map(message =>
+          message.id === assistantMessageId ? { ...message, ...updates } : message
+        );
+      });
+    };
+
     try {
-      const response = await askCourseQuestion(selectedCourseId, trimmedInput, token);
-      
-      const newAssistantMessage = {
-        id: `${Date.now()}-assistant`,
-        role: "assistant",
-        content: response.answer,
-        sources: response.sources || []
-      };
-      
-      setMessages(prevMessages => [...prevMessages, newAssistantMessage]);
+      await askCourseQuestionStream(selectedCourseId, trimmedInput, token, {
+        onSources: (sources) => upsertAssistantMessage({ sources }),
+        onToken: (_delta, fullText) => upsertAssistantMessage({ content: fullText })
+      });
     } catch (error) {
       if (error.status === 401 || error.status === 403) {
         localStorage.removeItem("access_token");
@@ -139,7 +152,7 @@ export default function AssistantPage() {
                               : 'bg-muted'
                           }`}
                         >
-                          {message.content}
+                          {message.content || (message.role === "assistant" && isGenerating ? "Generating..." : "")}
                           {message.sources && message.sources.length > 0 && (
                             <div className="mt-3 pt-3 border-t border-border">
                               <p className="text-sm font-medium mb-1">Sources</p>
@@ -185,7 +198,7 @@ export default function AssistantPage() {
                         </div>
                       </div>
                     ))}
-                    {isGenerating && (
+                    {isGenerating && messages[messages.length - 1]?.role !== "assistant" && (
                       <div className="flex justify-start">
                         <div className="max-w-3xl p-4 rounded-lg bg-muted whitespace-pre-wrap">
                           Generating...

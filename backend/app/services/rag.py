@@ -1,3 +1,4 @@
+from typing import Iterator
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -9,7 +10,8 @@ class RAGService:
         self.retrieval_service = RetrievalService()
         self.generation_service = GenerationService()
 
-    def ask_course(self, db: Session, user_id: UUID, course_id: UUID, question: str, limit: int = 5)-> dict:
+    def _build_context(self, db: Session, user_id: UUID, course_id: UUID, question: str, limit: int):
+        """Run retrieval and build the (context, sources) pair shared by ask_course and ask_course_stream."""
         results = self.retrieval_service.search_course(
             db=db,
             user_id=user_id,
@@ -19,10 +21,7 @@ class RAGService:
         )
 
         if not results:
-            return {
-                "answer":"I could not find any relevant course material for this question",
-                "sources": []
-            }
+            return None, []
 
         context_parts: list[str] =[]
         sources: list[dict] = []
@@ -80,6 +79,17 @@ Source: {material.file_name}, {location}
 
         context = "\n\n---\n\n".join(context_parts)
 
+        return context, sources
+
+    def ask_course(self, db: Session, user_id: UUID, course_id: UUID, question: str, limit: int = 5)-> dict:
+        context, sources = self._build_context(db, user_id, course_id, question, limit)
+
+        if context is None:
+            return {
+                "answer":"I could not find any relevant course material for this question",
+                "sources": []
+            }
+
         answer = self.generation_service.generate_answer(
             question=question,
             context=context
@@ -89,3 +99,22 @@ Source: {material.file_name}, {location}
             "answer": answer,
             "sources": sources
         }
+
+    def ask_course_stream(self, db: Session, user_id: UUID, course_id: UUID, question: str, limit: int = 5) -> Iterator[dict]:
+        """Yield {"type": "sources"|"token"|"done", ...} events as the answer is generated."""
+        context, sources = self._build_context(db, user_id, course_id, question, limit)
+
+        if context is None:
+            yield {
+                "type": "answer",
+                "answer": "I could not find any relevant course material for this question",
+                "sources": []
+            }
+            return
+
+        yield {"type": "sources", "sources": sources}
+
+        for token in self.generation_service.stream_answer(question=question, context=context):
+            yield {"type": "token", "text": token}
+
+        yield {"type": "done"}

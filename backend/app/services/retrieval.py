@@ -7,7 +7,7 @@ from app.models.course_material import CourseMaterial
 from app.models.document_chunk import DocumentChunk
 from app.services.embedding import EmbeddingService
 
-MAX_COSINE_DISTANCE = 0.35
+MAX_COSINE_DISTANCE = 0.45
 
 class RetrievalService:
 
