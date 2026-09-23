@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { fetchAssignmentsInRange } from "@/lib/assignments-api";
 import { fetchCourses } from "@/lib/courses-api";
 import { parseWallClockDate } from "@/lib/date-helpers";
@@ -10,7 +11,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, LayoutDashboardIcon } from "lucide-react";
+
+function DashboardToggleButton() {
+  return (
+    <Link href="/dashboard">
+      <Button variant="ghost" size="icon" aria-label="Dashboard">
+        <LayoutDashboardIcon className="h-5 w-5" />
+      </Button>
+    </Link>
+  );
+}
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -134,7 +145,10 @@ export default function CalendarPage() {
             Hover or tap a day to see what&apos;s due
           </p>
         </div>
-        <ThemeToggle />
+        <div className="flex items-center gap-2">
+          <DashboardToggleButton />
+          <ThemeToggle />
+        </div>
       </div>
 
       <div className="flex items-center justify-between mb-4">
@@ -188,7 +202,8 @@ export default function CalendarPage() {
             const dayAssignments = assignmentsByDay[key] || [];
             const hasAssignments = dayAssignments.length > 0;
             const rowIndex = Math.floor(index / 7);
-            const anchorAbove = rowIndex >= 4;
+            const totalRows = gridDays.length / 7;
+            const anchorAbove = rowIndex >= Math.ceil(totalRows / 2);
 
             return (
               <div
@@ -197,7 +212,7 @@ export default function CalendarPage() {
                   isCurrentMonth ? "" : "opacity-40"
                 } ${isToday ? "border-primary" : "border-border"} ${
                   hasAssignments ? "cursor-pointer hover:bg-muted/50" : ""
-                }`}
+                } ${activeDayKey === key ? "z-20" : ""}`}
                 onMouseEnter={() => hasAssignments && setActiveDayKey(key)}
                 onMouseLeave={() =>
                   setActiveDayKey((current) => (current === key ? null : current))

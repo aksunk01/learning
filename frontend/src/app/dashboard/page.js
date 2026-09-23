@@ -2,20 +2,35 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { SemesterHeading } from "@/components/semesters/semester-heading";
+import { SemesterProgress } from "@/components/semester-progress";
 import { CalendarIcon, ClockIcon, TargetIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { fetchDashboard } from "@/lib/dashboard-api";
+import { fetchSemesters } from "@/lib/semesters-api";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { formatWallClockDateShort } from "@/lib/date-helpers";
+import { formatWallClockDateShort, parseWallClockDate } from "@/lib/date-helpers";
+
+function CalendarToggleButton() {
+  return (
+    <Link href="/calendar">
+      <Button variant="ghost" size="icon" aria-label="Calendar">
+        <CalendarIcon className="h-5 w-5" />
+      </Button>
+    </Link>
+  );
+}
 
 export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedSemesterId, setSelectedSemesterId] = useState(null);
+  const [semesters, setSemesters] = useState([]);
   const [showOverdue, setShowOverdue] = useState(false);
   const [token, setToken] = useState(null);
   const router = useRouter();
@@ -56,6 +71,24 @@ export default function DashboardPage() {
     fetchDashboardData();
   }, [router, token, selectedSemesterId]);
 
+  useEffect(() => {
+    if (!token) return;
+
+    let isCancelled = false;
+
+    fetchSemesters(token)
+      .then((data) => {
+        if (!isCancelled) setSemesters(data);
+      })
+      .catch(() => {
+        // Progress bar just stays hidden if this fails
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [token]);
+
   // Helper function to get course name by ID
   const getCourseName = (courseId) => {
     if (!course_summaries) return null;
@@ -88,7 +121,10 @@ export default function DashboardPage() {
               Your academic overview and upcoming work
             </p>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <CalendarToggleButton />
+            <ThemeToggle />
+          </div>
         </div>
 
         {/* Summary Metrics Skeleton */}
@@ -230,7 +266,10 @@ export default function DashboardPage() {
               Your academic overview and upcoming work
             </p>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <CalendarToggleButton />
+            <ThemeToggle />
+          </div>
         </div>
         <div className="text-destructive">{error}</div>
       </div>
@@ -240,6 +279,14 @@ export default function DashboardPage() {
   if (!dashboardData) {
     return null;
   }
+
+  const now = new Date();
+  const activeSemester = selectedSemesterId
+    ? semesters.find((semester) => semester.id === selectedSemesterId)
+    : semesters.find((semester) => {
+        if (!semester.start_date || !semester.end_date) return false;
+        return now >= parseWallClockDate(semester.start_date) && now <= parseWallClockDate(semester.end_date);
+      });
 
   const {
     upcoming,
@@ -260,13 +307,23 @@ export default function DashboardPage() {
             token={token}
             value={selectedSemesterId}
             onChange={setSelectedSemesterId}
+            onSemesterUpdated={(updated) =>
+              setSemesters((current) =>
+                current.map((semester) => (semester.id === updated.id ? updated : semester))
+              )
+            }
           />
           <p className="text-muted-foreground mt-2">
             Your academic overview and upcoming work
           </p>
         </div>
-        <ThemeToggle />
+        <div className="flex items-center gap-2">
+          <CalendarToggleButton />
+          <ThemeToggle />
+        </div>
       </div>
+
+      <SemesterProgress semester={activeSemester} />
 
       {/* Summary Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
