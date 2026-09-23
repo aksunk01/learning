@@ -14,11 +14,6 @@ class CourseMaterialBase(BaseModel):
     file_size: int | None = None
 
 
-class CourseMaterialCreate(CourseMaterialBase):
-    name: str
-    description: str | None = None
-    material_type: str | None = None
-
 class CourseMaterialUpdate(BaseModel):
     name: str | None = None
     description: str | None = None

@@ -18,7 +18,7 @@ def health(db: Session = Depends(get_db)):
     try:
         db.execute(text("SELECT 1"))
         database_status = "ok"
-    except Exception as e:
+    except Exception:
         database_status = "error"
 
     redis_status = check_redis()

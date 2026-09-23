@@ -72,7 +72,7 @@ async def create_course_material(course_id: UUID,
         db.add(material)
         db.commit()
         db.refresh(material)
-    except Exception as e:
+    except Exception:
         db.rollback()
 
         try:

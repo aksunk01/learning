@@ -1,6 +1,5 @@
 from minio import Minio
 from app.core.config import settings
-from minio.error import S3Error
 from io import BytesIO
 from pathlib import Path
 import tempfile
@@ -48,10 +47,6 @@ def check_minio():
     except Exception:
         return "error"
 
-def ensure_bucket_exists()-> None:
-    if not minio_client.bucket_exists(settings.MINIO_BUCKET):
-        minio_client.make_bucket(settings.MINIO_BUCKET)
-
 def upload_file(object_name: str, file_data: bytes, content_type: str | None = None) -> None:
     minio_client.put_object(
         settings.MINIO_BUCKET,
@@ -74,12 +69,3 @@ def download_file(object_name: str) -> bytes:
 
 def delete_file(object_name: str) -> None:
     minio_client.remove_object(settings.MINIO_BUCKET, object_name)
-
-def file_exists(object_name: str) -> bool:
-    try:
-        minio_client.stat_object(settings.MINIO_BUCKET, object_name)
-        return True
-    except S3Error as e:
-        if e.code in ("NoSuchKey", "NoSuchObject", "NotFound"):
-            return False
-        raise

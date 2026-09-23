@@ -15,8 +15,6 @@ class Settings(BaseSettings):
     MINIO_ROOT_PASSWORD: str
     MINIO_BUCKET: str
 
-    OLLAMA_BASE_URL: str
-
     JWT_SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
