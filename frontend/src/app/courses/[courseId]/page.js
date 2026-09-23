@@ -18,16 +18,17 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { PageBreadcrumb } from "@/components/navigation/page-breadcrumb";
-import {formatWallClockDate, parseWallCloclDate} from "@/lib/date-helpers";
+import {formatWallClockDate} from "@/lib/date-helpers";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreVertical } from "lucide-react";
+import { MoreVertical, ExternalLinkIcon } from "lucide-react";
 import {EditAssignmentDialog} from "@/components/assignments/edit-assignment-dialog";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 export default function CourseDetailsPage() {
   const [course, setCourse] = useState(null);
@@ -277,7 +278,7 @@ export default function CourseDetailsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex-1 p-6 md:pb-6">
+      <div className="flex-1 p-6 pb-24 md:pb-6">
         <h1 className="text-3xl font-bold tracking-tight">Loading Course...</h1>
       </div>
     );
@@ -285,7 +286,7 @@ export default function CourseDetailsPage() {
 
   if (error || !course) {
     return (
-      <div className="flex-1 p-6 md:pb-6">
+      <div className="flex-1 p-6 pb-24 md:pb-6">
         <h1 className="text-3xl font-bold tracking-tight">Course Details</h1>
         <p className="text-destructive mt-2">
           {error || "Course not found"}
@@ -301,7 +302,7 @@ export default function CourseDetailsPage() {
     { label: course.name }
   ];
 
-  const getStatusBadge = (status, assignment = null) => {
+  const getStatusBadge = (status) => {
     switch (status) {
       case 'pending':
         return <span className="bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-yellow-900 dark:text-yellow-300">Pending</span>;
@@ -312,14 +313,6 @@ export default function CourseDetailsPage() {
       case 'failed':
         return <span className="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-red-900 dark:text-red-300">Failed</span>;
       default:
-        // For upcoming assignments (no status but due date in future)
-        if (assignment && assignment.due_at) {
-          const dueDate = parseWallClockDate(assignment.due_at);
-          const now = new Date();
-          if (dueDate && dueDate> now) {
-            return <span className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-green-900 dark:text-green-300">Upcoming</span>;
-          }
-        }
         return <span className="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-gray-700 dark:text-gray-300">{status}</span>;
     }
   };
@@ -333,7 +326,7 @@ const sortedAssignments = [...assignments].sort((a, b) => {
 });
 
   return (
-    <div className="flex-1 p-6 md:pb-6">
+    <div className="flex-1 p-6 pb-24 md:pb-6">
       <PageBreadcrumb items={breadcrumbItems} />
       <EditAssignmentDialog
         assignment={editingAssignment}
@@ -354,7 +347,7 @@ const sortedAssignments = [...assignments].sort((a, b) => {
 
         {course.semester && (
           <p className="text-muted-foreground mb-2">
-            Semester: {course.semester}
+            Semester: {course.semester.name}
           </p>
         )}
 
@@ -393,7 +386,7 @@ const sortedAssignments = [...assignments].sort((a, b) => {
 
         {activeView === 'assignments' ? (
           <div>
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
               <h3 className="text-xl font-semibold">
                 Assignments
               </h3>
@@ -509,7 +502,7 @@ const sortedAssignments = [...assignments].sort((a, b) => {
           </div>
         ) : activeView === 'completed' ? (
           <div>
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
               <h3 className="text-xl font-semibold">Completed</h3>
             </div>
             
@@ -623,7 +616,7 @@ const sortedAssignments = [...assignments].sort((a, b) => {
           </div>
         ) : (
           <div>
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
               <h3 className="text-xl font-semibold">Documents</h3>
               
               <UploadCourseMaterialDialog
@@ -668,6 +661,15 @@ const sortedAssignments = [...assignments].sort((a, b) => {
                         Error: {material.processing_error}
                       </div>
                     )}
+
+                    <div className="mt-3">
+                      <Link href={`/courses/${course.id}/materials/${material.id}`}>
+                        <Button size="sm" variant="outline" className="w-full sm:w-auto">
+                          <ExternalLinkIcon className="h-4 w-4 mr-2" />
+                          View
+                        </Button>
+                      </Link>
+                    </div>
                   </div>
                 ))}
               </div>

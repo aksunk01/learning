@@ -1,9 +1,8 @@
 "use client";
 
-"use client";
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { SemesterHeading } from "@/components/semesters/semester-heading";
 import { CalendarIcon, ClockIcon, TargetIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { fetchDashboard } from "@/lib/dashboard-api";
@@ -11,25 +10,35 @@ import { useRouter } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { formatWallClockDateShort } from "@/lib/date-helpers";
-import { SemesterProgress } from "@/components/semester-progress";
 
 export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selectedSemesterId, setSelectedSemesterId] = useState(null);
+  const [showOverdue, setShowOverdue] = useState(false);
+  const [token, setToken] = useState(null);
   const router = useRouter();
 
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    
-    if (!token) {
+    const storedToken = localStorage.getItem("access_token");
+
+    if (!storedToken) {
       router.push("/login");
       return;
     }
 
+    Promise.resolve().then(() => setToken(storedToken));
+  }, [router]);
+
+  useEffect(() => {
+    if (!token) return;
+
     const fetchDashboardData = async () => {
+      setIsLoading(true);
+
       try {
-        const data = await fetchDashboard(token);
+        const data = await fetchDashboard(token, selectedSemesterId);
         setDashboardData(data);
       } catch (err) {
         if (err.message.includes("401") || err.message.includes("403")) {
@@ -45,7 +54,7 @@ export default function DashboardPage() {
     };
 
     fetchDashboardData();
-  }, [router]);
+  }, [router, token, selectedSemesterId]);
 
   // Helper function to get course name by ID
   const getCourseName = (courseId) => {
@@ -71,7 +80,7 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="flex-1 p-6 md:pb-6">
+      <div className="flex-1 p-6 pb-24 md:pb-6">
         <div className="mb-8 flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
@@ -213,7 +222,7 @@ export default function DashboardPage() {
 
   if (error) {
     return (
-      <div className="flex-1 p-6 md:pb-6">
+      <div className="flex-1 p-6 pb-24 md:pb-6">
         <div className="mb-8 flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
@@ -232,31 +241,32 @@ export default function DashboardPage() {
     return null;
   }
 
-  const { 
-    upcoming, 
-    next_exam, 
-    next_project, 
+  const {
+    upcoming,
+    overdue,
     upcoming_exams,
     upcoming_projects,
-    counts, 
-    workload_next_7_days, 
+    counts,
+    workload_next_7_days,
     course_summaries,
     completed
   } = dashboardData;
 
   return (
-    <div className="flex-1 p-6 md:pb-6">
+    <div className="flex-1 p-6 pb-24 md:pb-6">
       <div className="mb-8 flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <SemesterHeading
+            token={token}
+            value={selectedSemesterId}
+            onChange={setSelectedSemesterId}
+          />
           <p className="text-muted-foreground mt-2">
             Your academic overview and upcoming work
           </p>
         </div>
         <ThemeToggle />
       </div>
-
-      <SemesterProgress />
 
       {/* Summary Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -282,7 +292,19 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          role="button"
+          tabIndex={0}
+          aria-expanded={showOverdue}
+          onClick={() => setShowOverdue((current) => !current)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              setShowOverdue((current) => !current);
+            }
+          }}
+          className="cursor-pointer hover:bg-muted/50 transition-colors"
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Overdue</CardTitle>
             <ClockIcon className="h-4 w-4 text-muted-foreground" />
@@ -293,6 +315,54 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {showOverdue && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Overdue Assignments</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4 max-h-[320px] overflow-y-auto">
+              {overdue && overdue.length > 0 ? (
+                overdue.map((assignment) => {
+                  const courseName = getCourseName(assignment.course_id);
+                  return (
+                    <div
+                      key={assignment.id}
+                      className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => handleAssignmentClick(assignment.id)}
+                    >
+                      <div>
+                        <h3 className="font-medium">{assignment.title}</h3>
+                        {courseName && assignment.assignment_type ? (
+                          <p className="text-sm text-muted-foreground">
+                            {courseName} · {assignment.assignment_type}
+                          </p>
+                        ) : courseName ? (
+                          <p className="text-sm text-muted-foreground">
+                            {courseName}
+                          </p>
+                        ) : assignment.assignment_type ? (
+                          <p className="text-sm text-muted-foreground">
+                            {assignment.assignment_type}
+                          </p>
+                        ) : null}
+                      </div>
+                      <Badge variant="destructive">
+                        {assignment.due_at ? formatWallClockDateShort(assignment.due_at) : 'No due date'}
+                      </Badge>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-4 text-muted-foreground">
+                  No overdue assignments
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <Card>

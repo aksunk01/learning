@@ -1,9 +1,9 @@
 "use client";
 
 import { fetchCourse } from '@/lib/courses-api';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { fetchAssignment, linkAssignmentMaterials, unlinkAssignmentMaterial, updateAssignmentMaterial } from '@/lib/assignments-api';
+import { fetchAssignment, linkAssignmentMaterials, unlinkAssignmentMaterial, updateAssignmentMaterial, updateAssignmentCompletion } from '@/lib/assignments-api';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,11 +17,11 @@ import {
   DialogTrigger
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { fetchCourseMaterials, fetchCourseMaterialFile } from '@/lib/course-materials-api';
-import { renderAsync } from 'docx-preview';
+import { fetchCourseMaterials } from '@/lib/course-materials-api';
 import { PageBreadcrumb } from "@/components/navigation/page-breadcrumb";
 import { formatWallClockDate } from "@/lib/date-helpers";
-import { Edit as EditIcon } from "lucide-react";
+import { Edit as EditIcon, ExternalLinkIcon, CheckIcon } from "lucide-react";
+import Link from "next/link";
 import { EditAssignmentDialog } from "@/components/assignments/edit-assignment-dialog";
 
 export default function AssignmentDetailPage() {
@@ -39,19 +39,15 @@ export default function AssignmentDetailPage() {
   const [searchText, setSearchText] = useState('');
   const [selectedMaterialId, setSelectedMaterialId] = useState(null);
   const [selectedViewerMaterialId, setSelectedViewerMaterialId] = useState(null);
-  const [viewerObjectUrl, setViewerObjectUrl] = useState(null);
-  const [viewerLoading, setViewerLoading] = useState(false);
-  const [viewerError, setViewerError] = useState('');
-  const [viewerMimeType, setViewerMimeType] = useState('');
   const [linking, setLinking] = useState(false);
   const [linkError, setLinkError] = useState('');
   const [unlinking, setUnlinking] = useState(null);
   const [unlinkError, setUnlinkError] = useState('');
   const [makingPrimary, setMakingPrimary] = useState(null);
   const [makePrimaryError, setMakePrimaryError] = useState('');
-  const docxContainerRef = useRef(null);
-  const [viewerBlob, setViewerBlob] = useState(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [isTogglingCompletion, setIsTogglingCompletion] = useState(false);
+  const [completionError, setCompletionError] = useState('');
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
@@ -136,96 +132,32 @@ export default function AssignmentDetailPage() {
       ...updatedAssignment
     }));
   };
-  // Load and display the selected material
-  useEffect(() => {
-    if (!assignment?.course_id || !effectiveViewerMaterialId) {
-      return;
-    }
 
-    let isCancelled = false;
-    let objectUrl = null;
+  const handleToggleCompletion = async () => {
+    setCompletionError('');
+    setIsTogglingCompletion(true);
 
-    const loadViewerMaterial = async () => {
-      try {
-        const token = localStorage.getItem('access_token');
+    try {
+      const token = localStorage.getItem('access_token');
+      const updatedAssignment = await updateAssignmentCompletion(
+        assignment.id,
+        !assignment.is_completed,
+        token
+      );
 
-        // Show loading state when switching materials
-        setViewerLoading(true);
-        setViewerError('');
-
-        const blob = await fetchCourseMaterialFile(
-          assignment.course_id,
-          effectiveViewerMaterialId,
-          token
-        );
-
-        if (isCancelled) {
-          return;
-        }
-
-        objectUrl = URL.createObjectURL(blob);
-
-        setViewerMimeType(blob.type);
-        setViewerObjectUrl(objectUrl);
-        setViewerBlob(blob);
-      } catch (err) {
-        if (!isCancelled) {
-          setViewerError(err.message || 'Failed to load document');
-          setViewerObjectUrl(null);
-          setViewerMimeType('');
-          setViewerBlob(null);
-        }
-      } finally {
-        if (!isCancelled) {
-          setViewerLoading(false);
-        }
+      handleAssignmentUpdated(updatedAssignment);
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        localStorage.removeItem('access_token');
+        router.push('/login');
+        return;
       }
-    };
 
-    loadViewerMaterial();
-
-    return () => {
-      isCancelled = true;
-
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
-    };
-  }, [assignment?.course_id, effectiveViewerMaterialId]);
-
-  // Handle DOCX rendering separately from file loading
-  useEffect(() => {
-    if (!viewerBlob || !docxContainerRef.current) {
-      return;
+      setCompletionError(err.message || 'Failed to update assignment');
+    } finally {
+      setIsTogglingCompletion(false);
     }
-
-    // Check if this is a DOCX file
-    if (viewerMimeType !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-      return;
-    }
-
-    let isCancelled = false;
-
-    const renderDocx = async () => {
-      try {
-        // Clear previous content
-        docxContainerRef.current.innerHTML = '';
-        
-        // Render DOCX using docx-preview
-        await renderAsync(viewerBlob, docxContainerRef.current);
-      } catch (error) {
-        if (!isCancelled) {
-          setViewerError(`Failed to render DOCX: ${error.message}`);
-        }
-      }
-    };
-
-    renderDocx();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [viewerBlob, viewerMimeType]);
+  };
 
   const handleCloseDialog = () => {
     setDialogOpen(false);
@@ -299,7 +231,7 @@ export default function AssignmentDetailPage() {
   );
 
   return (
-    <div className="w-full max-w-none  mx-auto p-4 md:p-6 lg:p-8">
+    <div className="w-full max-w-none mx-auto p-4 pb-24 md:p-6 lg:p-8">
       <PageBreadcrumb items={breadcrumbItems} />
       <Card className="mb-6">
         <EditAssignmentDialog
@@ -309,78 +241,61 @@ export default function AssignmentDetailPage() {
           onUpdated={handleAssignmentUpdated}
         />
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="text-2xl font-bold">{course?.name ? `${course.name}: ` : ''}
                {assignment.title}</CardTitle>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setEditOpen(true)}
-            >
-              <EditIcon className="h-4 w-4 mr-2" />
-              Edit
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={assignment.is_completed ? "outline" : "default"}
+                size="sm"
+                onClick={handleToggleCompletion}
+                disabled={isTogglingCompletion}
+              >
+                <CheckIcon className="h-4 w-4 mr-2" />
+                {isTogglingCompletion
+                  ? 'Updating...'
+                  : assignment.is_completed
+                  ? 'Mark Incomplete'
+                  : 'Mark Complete'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditOpen(true)}
+              >
+                <EditIcon className="h-4 w-4 mr-2" />
+                Edit
+              </Button>
+            </div>
           </div>
+          {completionError && (
+            <p className="text-sm text-destructive mt-2">{completionError}</p>
+          )}
         </CardHeader>
           <CardContent>
             <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 xl:gap-10">
               <div className="order-2 lg:order-1 flex-1 min-w-0">
               <div>
                 {selectedViewerMaterial && (
-                  <h4 className="font-medium mb-2">Document Viewer</h4>
+                  <h4 className="font-medium mb-2">Document</h4>
                 )}
 
                 {selectedViewerMaterial ? (
-                  <Card className="overflow-hidden">
-                    <CardContent className="p-4">
-                      <div className="mb-3">
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Viewing: {selectedViewerMaterial.name}
-                        </span>
-                      </div>
+                  <Card>
+                    <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
+                        {selectedViewerMaterial.name}
+                      </span>
 
-                      {viewerLoading ? (
-                        <div className="flex items-center justify-center h-[78vh]">
-                          <p className="text-gray-500">Loading document...</p>
-                        </div>
-                      ) : viewerError ? (
-                        <div className="flex items-center justify-center h-[78vh]">
-                          <p className="text-red-500 text-center">{viewerError}</p>
-                        </div>
-                      ) : viewerObjectUrl ? (
-                        viewerMimeType?.startsWith("application/pdf") ? (
-                          <iframe
-                            title={`Document Viewer - ${selectedViewerMaterial.name}`}
-                            src={viewerObjectUrl}
-                            className="w-full h-[78vh] border-0"
-                            aria-label={`PDF document viewer for ${selectedViewerMaterial.name}`}
-                          />
-                        ) : viewerMimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ? (
-                          <div 
-                            ref={docxContainerRef}
-                            className="w-full h-[78vh] overflow-y-auto border rounded p-4"
-                            aria-label={`DOCX document viewer for ${selectedViewerMaterial.name}`}
-                          />
-                        ) : (
-                          <div className="flex flex-col items-center justify-center h-[78vh] p-4 text-center">
-                            <p className="text-gray-500 mb-2">
-                              Viewing: {selectedViewerMaterial.name}
-                            </p>
-                            <p className="text-gray-500 mb-4">
-                              File type: {viewerMimeType || 'Unknown'}
-                            </p>
-                            <p className="text-gray-500">
-                              Preview is currently available for PDF files only.
-                            </p>
-                          </div>
-                        )
-                      ) : (
-                        <div className="flex items-center justify-center h-[78vh]">
-                          <p className="text-gray-500 text-center">
-                            Preview is currently available for PDF files only.
-                          </p>
-                        </div>
-                      )}
+                      <Link
+                        href={`/courses/${assignment.course_id}/materials/${selectedViewerMaterial.material_id}`}
+                        className="shrink-0"
+                      >
+                        <Button size="sm" className="w-full sm:w-auto">
+                          <ExternalLinkIcon className="h-4 w-4 mr-2" />
+                          Open document
+                        </Button>
+                      </Link>
                     </CardContent>
                   </Card>
                 ) : (

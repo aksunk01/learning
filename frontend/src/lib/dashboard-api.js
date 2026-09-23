@@ -1,11 +1,13 @@
-export async function fetchDashboard(token) {
+export async function fetchDashboard(token, semesterId) {
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-  
+
   if (!baseUrl) {
     throw new Error('NEXT_PUBLIC_API_BASE_URL environment variable is not set');
   }
-  
-  const response = await fetch(`${baseUrl}/api/v1/dashboard`, {
+
+  const query = semesterId ? `?semester_id=${encodeURIComponent(semesterId)}` : '';
+
+  const response = await fetch(`${baseUrl}/api/v1/dashboard${query}`, {
     method: 'GET',
     headers: {
       'Authorization': `Bearer ${token}`,
