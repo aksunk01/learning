@@ -28,6 +28,12 @@ from app.schemas.assignment import (
 
 EASTERN_TIME = ZoneInfo("America/New_York")
 
+
+def current_wall_clock_time() -> datetime:
+    """Current time as a naive Eastern wall-clock datetime, matching how due_at is stored."""
+    return datetime.now(EASTERN_TIME).replace(tzinfo=None)
+
+
 router = APIRouter(
     prefix="/courses/{course_id}/assignments",
     tags=["Assignments"]
@@ -39,7 +45,7 @@ all_assignments_router = APIRouter(
 )
 
 def query_upcoming_assignments(db: Session, user_id: UUID, limit: int | None = None, semester_id: UUID | None = None) -> list[Assignment]:
-    now = datetime.now(timezone.utc)
+    now = current_wall_clock_time()
 
     query = (
         db.query(Assignment)
@@ -66,7 +72,7 @@ def query_upcoming_assignments(db: Session, user_id: UUID, limit: int | None = N
     return query.all()
 
 def query_overdue_assignments(db: Session, user_id: UUID, semester_id: UUID | None = None)-> list[Assignment]:
-    now = datetime.now(timezone.utc)
+    now = current_wall_clock_time()
 
     query = (
         db.query(Assignment)
@@ -134,7 +140,7 @@ def query_assignments_in_range(db: Session, user_id: UUID, start_at: datetime | 
     )
 
 def query_upcoming_assignment_count(db: Session, user_id: UUID, semester_id: UUID | None = None) -> int:
-    now = datetime.now(timezone.utc)
+    now = current_wall_clock_time()
 
     query = (
         db.query(func.count(Assignment.id))
@@ -155,7 +161,7 @@ def query_upcoming_assignment_count(db: Session, user_id: UUID, semester_id: UUI
     return query.scalar()
 
 def query_upcoming_counts_by_course(db: Session, user_id: UUID, semester_id: UUID | None = None):
-    now = datetime.now(timezone.utc)
+    now = current_wall_clock_time()
 
     query = (
         db.query(
@@ -265,20 +271,10 @@ def get_all_assignments(course_id: UUID | None = None, start: date | None = None
     end_at = None
 
     if start is not None:
-        start_local = datetime.combine(
-            start,
-            time.min,
-            tzinfo=EASTERN_TIME
-        )
-        start_at = start_local.astimezone(timezone.utc)
+        start_at = datetime.combine(start, time.min)
 
     if end is not None:
-        end_local = datetime.combine(
-            end,
-            time.max,
-            tzinfo=EASTERN_TIME
-        )
-        end_at = end_local.astimezone(timezone.utc)
+        end_at = datetime.combine(end, time.max)
 
     return query_assignments_in_range(
         db = db,
