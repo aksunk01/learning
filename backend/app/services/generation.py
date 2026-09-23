@@ -1,11 +1,10 @@
 from typing import Iterator
 
-from google import genai
 from google.genai import types, errors
 
 import time
 
-from app.core.config import settings
+from app.services.gemini_client_pool import GeminiClientPool
 
 GENERATION_MODEL = "gemini-3.6-flash"
 
@@ -41,29 +40,31 @@ def _build_prompt(question: str, context: str) -> str:
 
 class GenerationService:
     def __init__(self)-> None:
-        self.client = genai.Client(
-            api_key=settings.GOOGLE_API_KEY
-        )
+        self.pool = GeminiClientPool()
 
     def generate_answer(self, question: str, context: str) -> str:
         prompt = _build_prompt(question, context)
+
+        def call(client):
+            return client.models.generate_content(
+                model=GENERATION_MODEL,
+                contents = prompt,
+                config= types.GenerateContentConfig(
+                    temperature=0.1,
+                    system_instruction=SYSTEM_INSTRUCTION
+                )
+            )
 
         max_attempts = 3
 
         for attempt in range(1, max_attempts + 1):
             try:
-                response = self.client.models.generate_content(
-                    model=GENERATION_MODEL,
-                    contents = prompt,
-                    config= types.GenerateContentConfig(
-                        temperature=0.1,
-                        system_instruction=SYSTEM_INSTRUCTION
-                    )
-                )
-
+                response = self.pool.run(call)
                 break
             except errors.APIError as e:
-                if e.code not in (429,503):
+                # 429 here means every configured key's quota is exhausted
+                # (GeminiClientPool already tried falling back internally).
+                if e.code != 503:
                     raise
 
                 if attempt == max_attempts:
@@ -80,18 +81,21 @@ class GenerationService:
         """Yield the answer incrementally as text deltas arrive from the model."""
         prompt = _build_prompt(question, context)
 
+        def call(client):
+            return client.models.generate_content_stream(
+                model=GENERATION_MODEL,
+                contents = prompt,
+                config= types.GenerateContentConfig(
+                    temperature=0.1,
+                    system_instruction=SYSTEM_INSTRUCTION
+                )
+            )
+
         max_attempts = 3
 
         for attempt in range(1, max_attempts + 1):
             try:
-                stream = self.client.models.generate_content_stream(
-                    model=GENERATION_MODEL,
-                    contents = prompt,
-                    config= types.GenerateContentConfig(
-                        temperature=0.1,
-                        system_instruction=SYSTEM_INSTRUCTION
-                    )
-                )
+                stream = self.pool.run(call)
 
                 for chunk in stream:
                     if chunk.text:
@@ -99,7 +103,7 @@ class GenerationService:
 
                 return
             except errors.APIError as e:
-                if e.code not in (429,503):
+                if e.code != 503:
                     raise
 
                 if attempt == max_attempts:

@@ -1,7 +1,6 @@
-from google import genai
 from google.genai import types
 
-from app.core.config import settings
+from app.services.gemini_client_pool import GeminiClientPool
 
 EMBEDDING_MODEL = "gemini-embedding-2"
 EMBEDDING_DIMENSION = 768
@@ -9,18 +8,16 @@ EMBEDDING_DIMENSION = 768
 class EmbeddingService:
 
     def __init__(self)->None:
-        self.client = genai.Client(
-            api_key=settings.GOOGLE_API_KEY
-        )
+        self.pool = GeminiClientPool()
 
     def _embed_text(self, text: str) -> list[float]:
-        response = self.client.models.embed_content(
+        response = self.pool.run(lambda client: client.models.embed_content(
             model=EMBEDDING_MODEL,
             contents=text,
             config=types.EmbedContentConfig(
                 output_dimensionality=EMBEDDING_DIMENSION
             )
-        )
+        ))
 
         embedding = response.embeddings[0].values
 
