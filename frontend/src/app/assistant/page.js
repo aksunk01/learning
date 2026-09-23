@@ -44,12 +44,12 @@ export default function AssistantPage() {
     setChatError("");
 
     const token = localStorage.getItem("access_token");
-    let assistantMessageAdded = false;
 
     const upsertAssistantMessage = (updates) => {
       setMessages(prevMessages => {
-        if (!assistantMessageAdded) {
-          assistantMessageAdded = true;
+        const exists = prevMessages.some(message => message.id === assistantMessageId);
+
+        if (!exists) {
           return [
             ...prevMessages,
             { id: assistantMessageId, role: "assistant", content: "", sources: [], ...updates }
