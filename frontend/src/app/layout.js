@@ -1,0 +1,50 @@
+import { Geist, Geist_Mono } from "next/font/google";
+import { DM_Sans } from 'next/font/google';
+import "./globals.css";
+import { ThemeProvider } from "@/components/providers/theme-provider";
+import { AppDock } from "@/components/navigation/app-dock";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+const dmSans = DM_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-dm-sans',
+});
+
+export const metadata = {
+  title: "Academic Assistant",
+  description: "By Abhiram Sunkara",
+};
+
+
+export default function RootLayout({ children }) {
+  return (
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} ${dmSans.variable} h-full antialiased`}
+      suppressHydrationWarning
+    >
+      <body className="min-h-full flex flex-col">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <AppDock />
+          {children}
+
+        </ThemeProvider>
+      </body>
+    </html>
+  );
+}

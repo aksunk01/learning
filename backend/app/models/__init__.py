@@ -1,0 +1,7 @@
+from app.models.user import User
+from app.models.semester import Semester
+from app.models.course import Course
+from app.models.course_material import CourseMaterial
+from app.models.document_chunk import DocumentChunk
+from app.models.assignment import Assignment
+from app.models.assignment_material import AssignmentMaterial
