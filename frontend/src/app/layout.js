@@ -2,7 +2,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { DM_Sans } from 'next/font/google';
 import "./globals.css";
 import { ThemeProvider } from "@/components/providers/theme-provider";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { AppDock } from "@/components/navigation/app-dock";
 
 const geistSans = Geist({

@@ -45,7 +45,9 @@ export function AppDock() {
     };
   }, []);
   
-  if (pathname === "/" || pathname === "/login"){
+  const isFullScreenViewer = /^\/courses\/[^/]+\/materials\/[^/]+$/.test(pathname);
+
+  if (pathname === "/" || pathname === "/login" || isFullScreenViewer) {
     return null;
   }
 
@@ -115,7 +117,10 @@ export function AppDock() {
       </div>
       
       {/* Mobile dock - visible only below md */}
-      <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 flex-row items-center gap-2 rounded-lg border border-border bg-background p-2 shadow-lg max-w-[calc(100vw-2rem)] md:hidden">
+      <div
+        className="fixed left-1/2 z-50 flex -translate-x-1/2 flex-row items-center gap-2 rounded-lg border border-border bg-background p-2 shadow-lg max-w-[calc(100vw-2rem)] md:hidden"
+        style={{ bottom: "max(1rem, env(safe-area-inset-bottom))" }}
+      >
         <div className={`relative flex h-12 items-center gap-2 transition-all duration-300 motion-safe:ease-in-out ${isExpanded ? 'w-[260px]' : 'w-12'}`}>
           {/* Collapsed state - always visible but faded */}
           <button

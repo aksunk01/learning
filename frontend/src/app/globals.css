@@ -128,3 +128,44 @@
     @apply font-sans;
   }
 }
+
+/* docx-preview renders pages at a fixed page width (e.g. Letter/A4) via its
+   own bundled `.docx` class; override it so documents fit narrow viewports
+   instead of overflowing horizontally. */
+.docx-viewer .docx-wrapper,
+.docx-viewer .docx-wrapper > .docx {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.docx-viewer .docx-wrapper > .docx {
+  padding: 1rem !important;
+}
+
+.docx-viewer table {
+  max-width: 100% !important;
+  table-layout: fixed !important;
+}
+
+.docx-viewer td,
+.docx-viewer th {
+  overflow-wrap: anywhere !important;
+}
+
+.docx-viewer img {
+  max-width: 100% !important;
+  height: auto !important;
+}
+
+.docx-viewer p,
+.docx-viewer span,
+.docx-viewer div {
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+}
+
+.docx-viewer .docx-wrapper > .docx {
+  overflow-x: auto !important;
+}
