@@ -1,0 +1,124 @@
+services:
+
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: academic-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-net
+
+  redis:
+    image: redis:8
+    container_name: academic-redis
+    restart: unless-stopped
+    networks:
+      - app-net
+
+  minio:
+    image: minio/minio
+    container_name: academic-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    networks:
+      - app-net
+
+  # Sidecar pattern: each app gets its own Tailscale device/hostname, reachable
+  # tailnet-wide with no port (HTTPS on 443 via `tailscale serve`). The app
+  # container joins this sidecar's network namespace (network_mode: service:*)
+  # instead of getting its own, so "the container on Tailscale" IS the app.
+  tailscale-backend:
+    image: tailscale/tailscale:latest
+    container_name: academic-tailscale-backend
+    restart: unless-stopped
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY_BACKEND}
+      TS_HOSTNAME: ${TS_HOSTNAME_BACKEND}
+      TS_SERVE_TARGET: http://127.0.0.1:8000
+    entrypoint: ["/tailscale-entrypoint.sh"]
+    volumes:
+      - ./docker/tailscale-entrypoint.sh:/tailscale-entrypoint.sh:ro
+      - tailscale_backend_state:/var/lib/tailscale
+    networks:
+      - app-net
+
+  backend:
+    build:
+      context: ./backend
+    container_name: academic-backend
+    restart: unless-stopped
+    network_mode: "service:tailscale-backend"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: HS256
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      GOOGLE_API_KEY_FALLBACKS: ${GOOGLE_API_KEY_FALLBACKS}
+    depends_on:
+      - tailscale-backend
+      - postgres
+      - redis
+      - minio
+
+  tailscale-frontend:
+    image: tailscale/tailscale:latest
+    container_name: academic-tailscale-frontend
+    restart: unless-stopped
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY_FRONTEND}
+      TS_HOSTNAME: ${TS_HOSTNAME_FRONTEND}
+      TS_SERVE_TARGET: http://127.0.0.1:3000
+    entrypoint: ["/tailscale-entrypoint.sh"]
+    volumes:
+      - ./docker/tailscale-entrypoint.sh:/tailscale-entrypoint.sh:ro
+      - tailscale_frontend_state:/var/lib/tailscale
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Baked into the client bundle at build time, so the backend's
+        # Tailscale hostname must be known before building this image.
+        NEXT_PUBLIC_API_BASE_URL: https://${TS_HOSTNAME_BACKEND}
+    container_name: academic-frontend
+    restart: unless-stopped
+    network_mode: "service:tailscale-frontend"
+    environment:
+      # Next.js standalone's server binds to $HOSTNAME if it resolves to an
+      # address. Docker's auto-injected HOSTNAME resolves (via this shared
+      # netns's /etc/hosts) to the sidecar's bridge IP rather than all
+      # interfaces, so the app was unreachable from the Tailscale side.
+      HOSTNAME: "0.0.0.0"
+    depends_on:
+      - tailscale-frontend
+      - backend
+
+networks:
+  app-net:
+
+volumes:
+  postgres_data:
+  minio_data:
+  tailscale_backend_state:
+  tailscale_frontend_state:
