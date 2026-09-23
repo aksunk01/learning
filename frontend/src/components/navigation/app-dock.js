@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { HomeIcon, BookOpenIcon, PanelLeft, X, Sparkles } from "lucide-react";
+import { HomeIcon, BookOpenIcon, CalendarIcon, PanelLeft, X, Sparkles } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
 export function AppDock() {
@@ -14,6 +14,7 @@ export function AppDock() {
   const isCoursesActive =
     pathname === "/courses" || pathname.startsWith("/courses/");
   const isAssistantActive = pathname === "/assistant";
+  const isCalendarActive = pathname === "/calendar";
 
   const handleMouseEnter = () => {
     if (timeoutRef.current) {
@@ -59,7 +60,7 @@ export function AppDock() {
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        <div className={`relative w-12 overflow-hidden rounded-lg border border-border bg-background p-2 shadow-lg transition-[height] duration-300 motion-safe:ease-in-out ${isExpanded ? "h-36" : "h-12"}`}>
+        <div className={`relative w-12 overflow-hidden rounded-lg border border-border bg-background p-2 shadow-lg transition-[height] duration-300 motion-safe:ease-in-out ${isExpanded ? "h-44" : "h-12"}`}>
           {/* Collapsed state - always visible but faded */}
           <button
             aria-label="Expand navigation"
@@ -101,6 +102,19 @@ export function AppDock() {
             </Link>
 
             <Link
+              href="/calendar"
+              aria-label="Calendar"
+              aria-current={isCalendarActive ? "page" : undefined}
+              className={`rounded-md p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                isCalendarActive
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              }`}
+            >
+              <CalendarIcon className="h-5 w-5" />
+            </Link>
+
+            <Link
               href="/assistant"
               aria-label="AI Assistant"
               aria-current={isAssistantActive ? "page" : undefined}
@@ -115,13 +129,13 @@ export function AppDock() {
           </nav>
         </div>
       </div>
-      
+
       {/* Mobile dock - visible only below md */}
       <div
         className="fixed left-1/2 z-50 flex -translate-x-1/2 flex-row items-center gap-2 rounded-lg border border-border bg-background p-2 shadow-lg max-w-[calc(100vw-2rem)] md:hidden"
         style={{ bottom: "max(1rem, env(safe-area-inset-bottom))" }}
       >
-        <div className={`relative flex h-12 items-center gap-2 transition-all duration-300 motion-safe:ease-in-out ${isExpanded ? 'w-[260px]' : 'w-12'}`}>
+        <div className={`relative flex h-12 items-center gap-2 transition-all duration-300 motion-safe:ease-in-out ${isExpanded ? 'w-[300px]' : 'w-12'}`}>
           {/* Collapsed state - always visible but faded */}
           <button
             aria-label="Expand navigation"
@@ -160,7 +174,21 @@ export function AppDock() {
             >
               <BookOpenIcon className="h-5 w-5" />
             </Link>
-            
+
+            <Link
+              href="/calendar"
+              aria-label="Calendar"
+              aria-current={isCalendarActive ? "page" : undefined}
+              className={`rounded-md p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                isCalendarActive
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              }`}
+              onClick={handleMobileCollapse}
+            >
+              <CalendarIcon className="h-5 w-5" />
+            </Link>
+
             <Link
               href="/assistant"
               aria-label="AI Assistant"
@@ -174,7 +202,7 @@ export function AppDock() {
             >
               <Sparkles className="h-5 w-5" />
             </Link>
-            
+
             <button
               aria-label="Collapse navigation"
               className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"

@@ -89,7 +89,7 @@ def query_overdue_assignments(db: Session, user_id: UUID, semester_id: UUID | No
 
     return query.all()
 
-def query_assignments_in_range(db: Session, user_id: UUID, start_at: datetime | None = None, end_at: datetime | None = None, course_id: UUID | None = None, semester_id: UUID | None = None) -> list[Assignment]:
+def query_assignments_in_range(db: Session, user_id: UUID, start_at: datetime | None = None, end_at: datetime | None = None, course_id: UUID | None = None, semester_id: UUID | None = None, include_completed: bool = False) -> list[Assignment]:
     query = (
         db.query(Assignment)
         .join(
@@ -97,10 +97,12 @@ def query_assignments_in_range(db: Session, user_id: UUID, start_at: datetime | 
             Assignment.course_id == Course.id
         )
         .filter(
-            Course.user_id == user_id,
-            Assignment.is_completed == False
+            Course.user_id == user_id
         )
     )
+
+    if not include_completed:
+        query = query.filter(Assignment.is_completed == False)
 
     if course_id is not None:
         query = query.filter(
@@ -258,7 +260,7 @@ def create_assignment(
 
 
 @all_assignments_router.get("", response_model=list[AssignmentResponse])
-def get_all_assignments(course_id: UUID | None = None, start: date | None = None, end: date | None = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_all_assignments(course_id: UUID | None = None, start: date | None = None, end: date | None = None, include_completed: bool = False, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     start_at = None
     end_at = None
 
@@ -283,7 +285,8 @@ def get_all_assignments(course_id: UUID | None = None, start: date | None = None
         user_id=current_user.id,
         start_at=start_at,
         end_at=end_at,
-        course_id=course_id
+        course_id=course_id,
+        include_completed=include_completed
     )
 
 
