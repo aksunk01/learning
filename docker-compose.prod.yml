@@ -100,7 +100,11 @@ services:
       args:
         # Baked into the client bundle at build time, so the backend's
         # Tailscale hostname must be known before building this image.
-        NEXT_PUBLIC_API_BASE_URL: https://${TS_HOSTNAME_BACKEND}
+        # Plain http, not https - the tailscale sidecars serve http:80 (see
+        # docker/tailscale-entrypoint.sh for why: bareword hostnames like
+        # "academic-assistant" only work when there's nothing on 443 for the
+        # browser's HTTPS-first attempt to fail against and fall back from).
+        NEXT_PUBLIC_API_BASE_URL: http://${TS_HOSTNAME_BACKEND}
     container_name: academic-frontend
     restart: unless-stopped
     network_mode: "service:tailscale-frontend"

@@ -16,7 +16,11 @@ origins = [
     "http://127.0.0.1:3000",
     "http://macbook:3000",
     "http://lenovo:3000",
-    "http://192.168.1.143:3000",       
+    "http://192.168.1.143:3000",
+    # Dockerized prod frontend, reached bareword over Tailscale MagicDNS
+    # (no port, since a browser typing a bare hostname sends that exact
+    # string as Origin - the .ts.net regex below doesn't match this).
+    "http://academic-assistant",
 ]
 
 app.add_middleware(

@@ -25,8 +25,12 @@ tailscale --socket=/var/run/tailscale/tailscaled.sock up \
   --hostname="${TS_HOSTNAME}" \
   --accept-dns=true
 
-# Fronts this device with HTTPS on 443 (Tailscale's MagicDNS TLS cert),
-# proxying everything to the app container sharing this network namespace.
-tailscale --socket=/var/run/tailscale/tailscaled.sock serve --bg --https=443 "${TS_SERVE_TARGET}"
+# Plain HTTP on port 80, not HTTPS - a bareword hostname (e.g. "open-seas")
+# only resolves to the app in a browser when there's nothing to fail a TLS
+# handshake against. HTTPS via `tailscale serve` issues a cert scoped to the
+# full FQDN, so a browser that literally typed the short name sends that as
+# SNI and the handshake fails; browsers only silently fall back from HTTPS to
+# HTTP on a clean connection failure (nothing on 443), not a failed handshake.
+tailscale --socket=/var/run/tailscale/tailscaled.sock serve --bg --http=80 "${TS_SERVE_TARGET}"
 
 tail -f /dev/null
