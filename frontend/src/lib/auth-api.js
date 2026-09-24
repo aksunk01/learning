@@ -23,6 +23,32 @@ export async function login(email, password) {
   return response.json();
 }
 
+export async function register(email, password) {
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+  if (!baseUrl) {
+    throw new Error('NEXT_PUBLIC_API_BASE_URL environment variable is not set');
+  }
+
+  const response = await fetch(`${baseUrl}/api/v1/auth/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ email, password })
+  });
+
+  if (!response.ok) {
+    if (response.status === 409) {
+      throw new Error('An account with this email already exists');
+    }
+
+    throw new Error(`Registration failed: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
 export async function getCurrentUser(token) {
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
   
