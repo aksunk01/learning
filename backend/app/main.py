@@ -20,7 +20,7 @@ origins = [
     # Dockerized prod frontend, reached bareword over Tailscale MagicDNS
     # (no port, since a browser typing a bare hostname sends that exact
     # string as Origin - the .ts.net regex below doesn't match this).
-    "http://academic-assistant",
+    "http://dueboard",
 ]
 
 app.add_middleware(
