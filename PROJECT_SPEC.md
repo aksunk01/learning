@@ -1,8 +1,8 @@
-# Academic Assistant — Project Specification
+# Dueboard — Project Specification
 
 ## Overview
 
-Academic Assistant is a personal academic management and AI assistant application.
+Dueboard is a personal academic management and AI assistant application.
 
 The system allows a user to:
 

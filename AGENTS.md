@@ -2,7 +2,7 @@
 
 ## Repository Overview
 
-This repository is a monorepo for the Academic Assistant project.
+This repository is a monorepo for the Dueboard project.
 
 Git repository root:
 

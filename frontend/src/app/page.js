@@ -65,7 +65,7 @@ export default function Home() {
       </div>
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-2xl font-bold text-center">Academic Assistant</CardTitle>
+          <CardTitle className="text-2xl font-bold text-center">Dueboard</CardTitle>
           <CardDescription className="text-center">
             Your personal academic productivity companion
           </CardDescription>

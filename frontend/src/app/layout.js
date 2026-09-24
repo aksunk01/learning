@@ -21,7 +21,7 @@ const dmSans = DM_Sans({
 });
 
 export const metadata = {
-  title: "Academic Assistant",
+  title: "Dueboard",
   description: "By Abhiram Sunkara",
 };
 

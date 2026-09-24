@@ -102,7 +102,7 @@ services:
         # Tailscale hostname must be known before building this image.
         # Plain http, not https - the tailscale sidecars serve http:80 (see
         # docker/tailscale-entrypoint.sh for why: bareword hostnames like
-        # "academic-assistant" only work when there's nothing on 443 for the
+        # "dueboard" only work when there's nothing on 443 for the
         # browser's HTTPS-first attempt to fail against and fall back from).
         NEXT_PUBLIC_API_BASE_URL: http://${TS_HOSTNAME_BACKEND}
     container_name: academic-frontend

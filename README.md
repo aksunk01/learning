@@ -1,4 +1,4 @@
-# AI Academic Assistant
+# Dueboard
 
 An AI-powered academic assistant built with:
 

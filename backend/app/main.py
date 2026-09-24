@@ -7,7 +7,7 @@ from app.api.v1 import users, courses, course_materials, rag, assignments, dashb
 
 
 app = FastAPI(
-    title="AI Academic Assistant API",
+    title="Dueboard API",
     version = "0.1.0"
 )
 
