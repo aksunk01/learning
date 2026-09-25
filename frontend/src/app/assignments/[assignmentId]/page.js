@@ -1,7 +1,7 @@
 "use client";
 
 import { fetchCourse } from '@/lib/courses-api';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { fetchAssignment, linkAssignmentMaterials, unlinkAssignmentMaterial, updateAssignmentMaterial, updateAssignmentCompletion } from '@/lib/assignments-api';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,12 +17,17 @@ import {
   DialogTrigger
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { fetchCourseMaterials } from '@/lib/course-materials-api';
+import { fetchCourseMaterials, fetchCourseMaterialFile } from '@/lib/course-materials-api';
 import { PageBreadcrumb } from "@/components/navigation/page-breadcrumb";
 import { formatWallClockDate } from "@/lib/date-helpers";
 import { Edit as EditIcon, ExternalLinkIcon, CheckIcon } from "lucide-react";
 import Link from "next/link";
 import { EditAssignmentDialog } from "@/components/assignments/edit-assignment-dialog";
+import { PdfViewer } from "@/components/documents/pdf-viewer";
+import { useIsMobile } from "@/hooks/use-mobile";
+
+const DOCX_MIME_TYPE =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 export default function AssignmentDetailPage() {
   const params = useParams();
@@ -48,6 +53,12 @@ export default function AssignmentDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [isTogglingCompletion, setIsTogglingCompletion] = useState(false);
   const [completionError, setCompletionError] = useState('');
+  const [viewerBlob, setViewerBlob] = useState(null);
+  const [viewerMimeType, setViewerMimeType] = useState('');
+  const [viewerLoading, setViewerLoading] = useState(false);
+  const [viewerError, setViewerError] = useState('');
+  const docxContainerRef = useRef(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
@@ -102,6 +113,87 @@ export default function AssignmentDetailPage() {
     linkedMaterials.find(
       (material) => material.material_id === effectiveViewerMaterialId
     ) || null;
+
+  // Desktop shows the document inline; mobile links out to the full-screen viewer instead.
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadViewerMaterial = async () => {
+      if (isMobile || !assignment?.course_id || !effectiveViewerMaterialId) {
+        return;
+      }
+
+      try {
+        const token = localStorage.getItem('access_token');
+        setViewerLoading(true);
+        setViewerError('');
+
+        const blob = await fetchCourseMaterialFile(
+          assignment.course_id,
+          effectiveViewerMaterialId,
+          token
+        );
+
+        if (isCancelled) return;
+
+        setViewerMimeType(blob.type);
+        setViewerBlob(blob);
+      } catch (err) {
+        if (!isCancelled) {
+          setViewerError(err.message || 'Failed to load document');
+          setViewerBlob(null);
+          setViewerMimeType('');
+        }
+      } finally {
+        if (!isCancelled) {
+          setViewerLoading(false);
+        }
+      }
+    };
+
+    loadViewerMaterial();
+
+    return () => {
+      isCancelled = true;
+      setViewerBlob(null);
+      setViewerMimeType('');
+      setViewerError('');
+    };
+  }, [isMobile, assignment?.course_id, effectiveViewerMaterialId]);
+
+  // Handle DOCX rendering separately from file loading
+  useEffect(() => {
+    if (!viewerBlob || !docxContainerRef.current) {
+      return;
+    }
+
+    if (viewerMimeType !== DOCX_MIME_TYPE) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    const renderDocx = async () => {
+      try {
+        const { renderAsync } = await import('docx-preview');
+        docxContainerRef.current.innerHTML = '';
+        await renderAsync(viewerBlob, docxContainerRef.current, undefined, {
+          ignoreWidth: true,
+          ignoreHeight: true,
+        });
+      } catch (error) {
+        if (!isCancelled) {
+          setViewerError(`Failed to render DOCX: ${error.message}`);
+        }
+      }
+    };
+
+    renderDocx();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [viewerBlob, viewerMimeType]);
 
   const handleOpenDialog = async () => {
     setDialogOpen(true);
@@ -281,23 +373,77 @@ export default function AssignmentDetailPage() {
                 )}
 
                 {selectedViewerMaterial ? (
-                  <Card>
-                    <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
-                        {selectedViewerMaterial.name}
-                      </span>
+                  isMobile ? (
+                    <Card>
+                      <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
+                          {selectedViewerMaterial.name}
+                        </span>
 
-                      <Link
-                        href={`/courses/${assignment.course_id}/materials/${selectedViewerMaterial.material_id}`}
-                        className="shrink-0"
-                      >
-                        <Button size="sm" className="w-full sm:w-auto">
-                          <ExternalLinkIcon className="h-4 w-4 mr-2" />
-                          Open document
-                        </Button>
-                      </Link>
-                    </CardContent>
-                  </Card>
+                        <Link
+                          href={`/courses/${assignment.course_id}/materials/${selectedViewerMaterial.material_id}`}
+                          className="shrink-0"
+                        >
+                          <Button size="sm" className="w-full sm:w-auto">
+                            <ExternalLinkIcon className="h-4 w-4 mr-2" />
+                            Open document
+                          </Button>
+                        </Link>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <Card className="overflow-hidden">
+                      <CardContent className="p-4">
+                        <div className="mb-3">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Viewing: {selectedViewerMaterial.name}
+                          </span>
+                        </div>
+
+                        {viewerLoading ? (
+                          <div className="flex items-center justify-center h-[78vh]">
+                            <p className="text-gray-500">Loading document...</p>
+                          </div>
+                        ) : viewerError ? (
+                          <div className="flex items-center justify-center h-[78vh]">
+                            <p className="text-red-500 text-center">{viewerError}</p>
+                          </div>
+                        ) : viewerBlob ? (
+                          viewerMimeType?.startsWith('application/pdf') ? (
+                            <div className="h-[78vh] overflow-y-auto">
+                              <PdfViewer blob={viewerBlob} />
+                            </div>
+                          ) : viewerMimeType === DOCX_MIME_TYPE ? (
+                            <div
+                              ref={docxContainerRef}
+                              className="docx-viewer w-full h-[78vh] overflow-y-auto border rounded p-4 bg-white text-black"
+                              aria-label={`DOCX document viewer for ${selectedViewerMaterial.name}`}
+                            />
+                          ) : (
+                            <div className="flex flex-col items-center justify-center h-[78vh] p-4 text-center">
+                              <p className="text-gray-500 mb-4">
+                                Preview is currently available for PDF and DOCX files only.
+                              </p>
+                              <Link
+                                href={`/courses/${assignment.course_id}/materials/${selectedViewerMaterial.material_id}`}
+                              >
+                                <Button size="sm">
+                                  <ExternalLinkIcon className="h-4 w-4 mr-2" />
+                                  Open document
+                                </Button>
+                              </Link>
+                            </div>
+                          )
+                        ) : (
+                          <div className="flex items-center justify-center h-[78vh]">
+                            <p className="text-gray-500 text-center">
+                              Preview is currently available for PDF and DOCX files only.
+                            </p>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )
                 ) : (
                   <Card className="p-4">
                     <p className="text-gray-500 dark:text-gray-400">
