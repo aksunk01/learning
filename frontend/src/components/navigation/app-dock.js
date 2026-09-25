@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { HomeIcon, BookOpenIcon, CalendarIcon, PanelLeft, X, Sparkles } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { HomeIcon, BookOpenIcon, CalendarIcon, PanelLeft, X, Sparkles, ListChecks, LogOutIcon } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
 export function AppDock() {
   const pathname = usePathname();
+  const router = useRouter();
   const [isExpanded, setIsExpanded] = useState(false);
   const timeoutRef = useRef(null);
 
@@ -15,6 +16,7 @@ export function AppDock() {
     pathname === "/courses" || pathname.startsWith("/courses/");
   const isAssistantActive = pathname === "/assistant";
   const isCalendarActive = pathname === "/calendar";
+  const isPlannerActive = pathname === "/planner";
 
   const handleMouseEnter = () => {
     if (timeoutRef.current) {
@@ -36,6 +38,11 @@ export function AppDock() {
 
   const handleMobileCollapse = () => {
     setIsExpanded(false);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("access_token");
+    router.push("/");
   };
 
   useEffect(() => {
@@ -60,7 +67,7 @@ export function AppDock() {
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        <div className={`relative w-12 overflow-hidden rounded-lg border border-border bg-background p-2 shadow-lg transition-[height] duration-300 motion-safe:ease-in-out ${isExpanded ? "h-44" : "h-12"}`}>
+        <div className={`relative w-12 overflow-hidden rounded-lg border border-border bg-background p-2 shadow-lg transition-[height] duration-300 motion-safe:ease-in-out ${isExpanded ? "h-60" : "h-12"}`}>
           {/* Collapsed state - always visible but faded */}
           <button
             aria-label="Expand navigation"
@@ -89,6 +96,19 @@ export function AppDock() {
             </Link>
 
             <Link
+              href="/planner"
+              aria-label="Planner"
+              aria-current={isPlannerActive ? "page" : undefined}
+              className={`rounded-md p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                isPlannerActive
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              }`}
+            >
+              <ListChecks className="h-5 w-5" />
+            </Link>
+
+            <Link
               href="/courses"
               aria-label="Courses"
               aria-current={isCoursesActive ? "page" : undefined}
@@ -126,6 +146,14 @@ export function AppDock() {
             >
               <Sparkles className="h-5 w-5" />
             </Link>
+
+            <button
+              aria-label="Log out"
+              onClick={handleLogout}
+              className="rounded-md p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            >
+              <LogOutIcon className="h-5 w-5" />
+            </button>
           </nav>
         </div>
       </div>
@@ -135,7 +163,7 @@ export function AppDock() {
         className="fixed left-1/2 z-50 flex -translate-x-1/2 flex-row items-center gap-2 rounded-lg border border-border bg-background p-2 shadow-lg max-w-[calc(100vw-2rem)] md:hidden"
         style={{ bottom: "max(1rem, env(safe-area-inset-bottom))" }}
       >
-        <div className={`relative flex h-12 items-center gap-2 transition-all duration-300 motion-safe:ease-in-out ${isExpanded ? 'w-[300px]' : 'w-12'}`}>
+        <div className={`relative flex h-12 items-center gap-2 transition-all duration-300 motion-safe:ease-in-out ${isExpanded ? 'w-[400px]' : 'w-12'}`}>
           {/* Collapsed state - always visible but faded */}
           <button
             aria-label="Expand navigation"
@@ -162,6 +190,20 @@ export function AppDock() {
             </Link>
 
             <Link
+              href="/planner"
+              aria-label="Planner"
+              aria-current={isPlannerActive ? "page" : undefined}
+              className={`rounded-md p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                isPlannerActive
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              }`}
+              onClick={handleMobileCollapse}
+            >
+              <ListChecks className="h-5 w-5" />
+            </Link>
+
+            <Link
               href="/courses"
               aria-label="Courses"
               aria-current={isCoursesActive ? "page" : undefined}
@@ -202,6 +244,14 @@ export function AppDock() {
             >
               <Sparkles className="h-5 w-5" />
             </Link>
+
+            <button
+              aria-label="Log out"
+              className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              onClick={handleLogout}
+            >
+              <LogOutIcon className="h-5 w-5" />
+            </button>
 
             <button
               aria-label="Collapse navigation"

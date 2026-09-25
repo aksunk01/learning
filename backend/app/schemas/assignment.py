@@ -1,7 +1,20 @@
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from pydantic import AliasPath, BaseModel, ConfigDict, field_validator, Field
+
+
+def _validate_difficulty(v: int | None) -> int | None:
+    if v is not None and (v < 1 or v > 5):
+        raise ValueError("Difficulty must be between 1 and 5 inclusive")
+    return v
+
+
+def _validate_estimated_minutes(v: int | None) -> int | None:
+    if v is not None and v <= 0:
+        raise ValueError("Estimated minutes must be positive")
+    return v
+
 
 class AssignmentUpdate(BaseModel):
     title: str | None = None
@@ -10,6 +23,10 @@ class AssignmentUpdate(BaseModel):
     due_at: datetime | None = None
     points: float | None = None
     weight_percent: float | None = None
+    estimated_minutes: int | None = None
+    difficulty: int | None = None
+    scheduled_date: date | None = None
+    priority_override: float | None = None
 
     @field_validator("title")
     @classmethod
@@ -19,22 +36,32 @@ class AssignmentUpdate(BaseModel):
 
             if not value:
                 raise ValueError("Title must not be blank or whitespace-only")
-        
+
         return value
-    
+
     @field_validator("points")
     @classmethod
     def points_must_not_be_negative(cls, v: float | None) -> float | None:
         if v is not None and v < 0:
             raise ValueError("Points must not be negative")
         return v
-    
+
     @field_validator("weight_percent")
     @classmethod
     def weight_percent_must_be_between_0_and_100(cls, v: float | None) -> float | None:
         if v is not None and (v < 0 or v > 100):
             raise ValueError("Weight percent must be between 0 and 100 inclusive")
         return v
+
+    @field_validator("difficulty")
+    @classmethod
+    def difficulty_must_be_between_1_and_5(cls, v: int | None) -> int | None:
+        return _validate_difficulty(v)
+
+    @field_validator("estimated_minutes")
+    @classmethod
+    def estimated_minutes_must_be_positive(cls, v: int | None) -> int | None:
+        return _validate_estimated_minutes(v)
 
 class AssignmentMaterialLink(BaseModel):
     material_id: UUID
@@ -92,13 +119,18 @@ class AssignmentDetailResponse(BaseModel):
     source_chunk_index: int | None
 
     extraction_metadata: dict | None
-    
+
     is_completed: bool
     completed_at: datetime | None
 
+    estimated_minutes: int | None
+    difficulty: int | None
+    scheduled_date: date | None
+    priority_override: float | None
+
     created_at: datetime
     updated_at: datetime
-    
+
     linked_materials: list[AssignmentMaterialResponse] = Field(validation_alias="assignment_materials", default_factory=list)
 
     model_config = ConfigDict(
@@ -113,6 +145,10 @@ class AssignmentCreate(BaseModel):
     due_at: datetime | None = None
     points: float | None = None
     weight_percent: float | None = None
+    estimated_minutes: int | None = None
+    difficulty: int | None = None
+    scheduled_date: date | None = None
+    priority_override: float | None = None
 
     @field_validator("title")
     @classmethod
@@ -121,22 +157,32 @@ class AssignmentCreate(BaseModel):
 
         if not value:
             raise ValueError("Title must not be blank or whitespace-only")
-        
+
         return v
-    
+
     @field_validator("points")
     @classmethod
     def points_must_not_be_negative(cls, v: float | None) -> float | None:
         if v is not None and v < 0:
             raise ValueError("Points must not be negative")
         return v
-    
+
     @field_validator("weight_percent")
     @classmethod
     def weight_percent_must_be_between_0_and_100(cls, v: float | None) -> float | None:
         if v is not None and (v < 0 or v > 100):
             raise ValueError("Weight percent must be between 0 and 100 inclusive")
         return v
+
+    @field_validator("difficulty")
+    @classmethod
+    def difficulty_must_be_between_1_and_5(cls, v: int | None) -> int | None:
+        return _validate_difficulty(v)
+
+    @field_validator("estimated_minutes")
+    @classmethod
+    def estimated_minutes_must_be_positive(cls, v: int | None) -> int | None:
+        return _validate_estimated_minutes(v)
 
     model_config = ConfigDict(
         from_attributes=True
@@ -145,6 +191,12 @@ class AssignmentCreate(BaseModel):
 
 class AssignmentCompletionUpdate(BaseModel):
     is_completed: bool
+    actual_minutes: int | None = None
+
+    @field_validator("actual_minutes")
+    @classmethod
+    def actual_minutes_must_be_positive(cls, v: int | None) -> int | None:
+        return _validate_estimated_minutes(v)
 
 
 class AssignmentResponse(BaseModel):
@@ -167,9 +219,14 @@ class AssignmentResponse(BaseModel):
     source_chunk_index: int | None
 
     extraction_metadata: dict | None
-    
+
     is_completed: bool
     completed_at: datetime | None
+
+    estimated_minutes: int | None
+    difficulty: int | None
+    scheduled_date: date | None
+    priority_override: float | None
 
     created_at: datetime
     updated_at: datetime

@@ -25,6 +25,7 @@ import Link from "next/link";
 import { EditAssignmentDialog } from "@/components/assignments/edit-assignment-dialog";
 import { PdfViewer } from "@/components/documents/pdf-viewer";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { AssignmentSubtasksCard } from "@/components/assignments/assignment-subtasks-card";
 
 const DOCX_MIME_TYPE =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -513,6 +514,10 @@ export default function AssignmentDetailPage() {
                     </p>
                   </div>
                 )}
+
+                <div className="mt-8">
+                  <AssignmentSubtasksCard assignmentId={assignment.id} />
+                </div>
 
                 {/* Existing linked materials section continues here */}
 

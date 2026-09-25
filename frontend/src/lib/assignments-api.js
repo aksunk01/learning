@@ -238,13 +238,13 @@ export async function unlinkAssignmentMaterial(assignmentId, materialId, token) 
   return true;
 }
 
-export async function updateAssignmentCompletion(assignmentId, isCompleted, token) {
+export async function updateAssignmentCompletion(assignmentId, isCompleted, token, { actualMinutes } = {}) {
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-  
+
   if (!baseUrl) {
     throw new Error('NEXT_PUBLIC_API_BASE_URL environment variable is not set');
   }
-  
+
   const response = await fetch(`${baseUrl}/api/v1/assignments/${assignmentId}/completion`, {
     method: 'PATCH',
     headers: {
@@ -253,6 +253,7 @@ export async function updateAssignmentCompletion(assignmentId, isCompleted, toke
     },
     body: JSON.stringify({
       is_completed: isCompleted,
+      ...(actualMinutes != null ? { actual_minutes: actualMinutes } : {}),
     })
   });
   

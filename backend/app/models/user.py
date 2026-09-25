@@ -42,3 +42,10 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan"
     )
+
+    planner_preference = relationship(
+        "PlannerPreference",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan"
+    )
