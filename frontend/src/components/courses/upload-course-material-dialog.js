@@ -146,6 +146,9 @@ export function UploadCourseMaterialDialog({
                 placeholder="e.g. Syllabus, Lecture Notes"
                 {...form.register("materialType")}
               />
+              <p className="text-xs text-muted-foreground">
+                Tip: name it &quot;Syllabus&quot; to auto-extract grading weights.
+              </p>
               <FieldError>
                 {form.formState.errors.materialType?.message}
               </FieldError>

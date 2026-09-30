@@ -7,6 +7,7 @@ from app.models.assignment import Assignment
 from app.models.course_material import CourseMaterial
 from app.models.document_chunk import DocumentChunk as DocumentChunkModel
 from app.services.assignment_processing import AssignmentProcessingService
+from app.services.grading_processing import GradingCategoryProcessingService
 from app.services.document_processing.chunking import DocumentChunk
 from app.services.document_processing.service import (
     DocumentProcessingError,
@@ -26,6 +27,7 @@ class CourseMaterialProcessingService:
         self.document_processor = DocumentProcessingService()
         self.embedding_service = EmbeddingService()
         self.assignment_processor = AssignmentProcessingService()
+        self.grading_processor = GradingCategoryProcessingService()
 
     def process(
         self,
@@ -143,6 +145,17 @@ class CourseMaterialProcessingService:
                 course_context=course_context or None,
                 commit_changes=False,
             )
+
+            # A syllabus upload also gets its grading breakdown (weighted
+            # categories) extracted, so a course's grade calculator has
+            # weights to work with as soon as the syllabus is processed.
+            if material.material_type.strip().lower() == "syllabus":
+                self.grading_processor.process_material(
+                    material=material,
+                    db=db,
+                    course_context=course_context or None,
+                    commit_changes=False,
+                )
 
             # Processing has fully succeeded.
             material.processing_status = "completed"

@@ -71,3 +71,9 @@ class Course(Base):
         back_populates="course",
         cascade="all, delete-orphan"
     )
+
+    grading_categories = relationship(
+        "GradingCategory",
+        back_populates="course",
+        cascade="all, delete-orphan"
+    )

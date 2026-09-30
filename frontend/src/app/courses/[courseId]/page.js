@@ -6,6 +6,7 @@ import { fetchCourse } from "@/lib/courses-api";
 import { fetchCourseMaterials, processCourseMaterial } from "@/lib/course-materials-api";
 import { fetchCourseAssignments, deleteAssignment, updateAssignmentCompletion } from "@/lib/assignments-api";
 import { UploadCourseMaterialDialog } from "@/components/courses/upload-course-material-dialog";
+import { GradingTab } from "@/components/courses/grading-tab";
 import { CreateAssignmentDialog } from "@/components/assignments/create-assignment-dialog";
 import {
   AlertDialog,
@@ -382,6 +383,13 @@ const sortedAssignments = [...assignments].sort((a, b) => {
           >
             Documents
           </button>
+          <button
+            type="button"
+            className={`py-2 px-4 font-medium text-sm ${activeView === 'grading' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setActiveView('grading')}
+          >
+            Grading
+          </button>
         </div>
 
         {activeView === 'assignments' ? (
@@ -614,7 +622,7 @@ const sortedAssignments = [...assignments].sort((a, b) => {
               </div>
             )}
           </div>
-        ) : (
+        ) : activeView === 'documents' ? (
           <div>
             <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
               <h3 className="text-xl font-semibold">Documents</h3>
@@ -675,8 +683,10 @@ const sortedAssignments = [...assignments].sort((a, b) => {
               </div>
             )}
           </div>
+        ) : (
+          <GradingTab courseId={courseId} token={token} />
         )}
-        
+
         {/* Delete Confirmation Dialog */}
         <AlertDialog open={deleteDialogOpen} onOpenChange={handleCancelDelete}>
           <AlertDialogContent>

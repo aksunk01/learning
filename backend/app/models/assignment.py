@@ -61,6 +61,18 @@ class Assignment(Base):
         nullable=True
     )
 
+    category_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("grading_categories.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
+
+    score_earned: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True
+    )
+
     source_page: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True
@@ -152,4 +164,9 @@ class Assignment(Base):
         back_populates="assignment",
         cascade="all, delete-orphan",
         order_by="AssignmentSubtask.order_index"
+    )
+
+    category = relationship(
+        "GradingCategory",
+        back_populates="assignments"
     )

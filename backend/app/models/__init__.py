@@ -4,6 +4,7 @@ from app.models.course import Course
 from app.models.course_material import CourseMaterial
 from app.models.document_chunk import DocumentChunk
 from app.models.assignment import Assignment
+from app.models.grading_category import GradingCategory
 from app.models.assignment_material import AssignmentMaterial
 from app.models.assignment_subtask import AssignmentSubtask
 from app.models.task_time_log import TaskTimeLog

@@ -3,6 +3,8 @@ from uuid import UUID
 
 from pydantic import AliasPath, BaseModel, ConfigDict, field_validator, Field
 
+from app.schemas.grading_category import GradingCategoryResponse
+
 
 def _validate_difficulty(v: int | None) -> int | None:
     if v is not None and (v < 1 or v > 5):
@@ -16,6 +18,12 @@ def _validate_estimated_minutes(v: int | None) -> int | None:
     return v
 
 
+def _validate_score_earned(v: float | None) -> float | None:
+    if v is not None and v < 0:
+        raise ValueError("Score earned must not be negative")
+    return v
+
+
 class AssignmentUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
@@ -23,6 +31,8 @@ class AssignmentUpdate(BaseModel):
     due_at: datetime | None = None
     points: float | None = None
     weight_percent: float | None = None
+    category_id: UUID | None = None
+    score_earned: float | None = None
     estimated_minutes: int | None = None
     difficulty: int | None = None
     scheduled_date: date | None = None
@@ -52,6 +62,11 @@ class AssignmentUpdate(BaseModel):
         if v is not None and (v < 0 or v > 100):
             raise ValueError("Weight percent must be between 0 and 100 inclusive")
         return v
+
+    @field_validator("score_earned")
+    @classmethod
+    def score_earned_must_not_be_negative(cls, v: float | None) -> float | None:
+        return _validate_score_earned(v)
 
     @field_validator("difficulty")
     @classmethod
@@ -112,6 +127,9 @@ class AssignmentDetailResponse(BaseModel):
 
     points: float | None
     weight_percent: float | None
+    category_id: UUID | None
+    category: GradingCategoryResponse | None = None
+    score_earned: float | None
 
     source_page: int | None
     source_slide: int | None
@@ -145,6 +163,8 @@ class AssignmentCreate(BaseModel):
     due_at: datetime | None = None
     points: float | None = None
     weight_percent: float | None = None
+    category_id: UUID | None = None
+    score_earned: float | None = None
     estimated_minutes: int | None = None
     difficulty: int | None = None
     scheduled_date: date | None = None
@@ -173,6 +193,11 @@ class AssignmentCreate(BaseModel):
         if v is not None and (v < 0 or v > 100):
             raise ValueError("Weight percent must be between 0 and 100 inclusive")
         return v
+
+    @field_validator("score_earned")
+    @classmethod
+    def score_earned_must_not_be_negative(cls, v: float | None) -> float | None:
+        return _validate_score_earned(v)
 
     @field_validator("difficulty")
     @classmethod
@@ -212,6 +237,9 @@ class AssignmentResponse(BaseModel):
 
     points: float | None
     weight_percent: float | None
+    category_id: UUID | None
+    category: GradingCategoryResponse | None = None
+    score_earned: float | None
 
     source_page: int | None
     source_slide: int | None

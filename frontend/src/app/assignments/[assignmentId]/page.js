@@ -502,6 +502,29 @@ export default function AssignmentDetailPage() {
                       </Badge>
                     </div>
                   )}
+
+                  {assignment.score_earned != null && (
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                        Score
+                      </h3>
+                      <p className="text-lg font-semibold">
+                        {assignment.score_earned}
+                        {assignment.points != null ? ` / ${assignment.points}` : ""}
+                      </p>
+                    </div>
+                  )}
+
+                  {assignment.category && (
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                        Grading Category
+                      </h3>
+                      <Badge variant="secondary" className="mt-1">
+                        {assignment.category.name} ({assignment.category.weight_percent}%)
+                      </Badge>
+                    </div>
+                  )}
                 </div>
 
                 {assignment.description && (
