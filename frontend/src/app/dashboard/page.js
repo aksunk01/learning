@@ -243,26 +243,6 @@ export default function DashboardPage() {
             </div>
           </CardContent>
         </Card>
-
-        {/* Workload Skeleton */}
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              <Skeleton className="h-6 w-40" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-end justify-between h-32 gap-2">
-              {[1, 2, 3, 4, 5, 6, 7].map((day) => (
-                <div key={day} className="flex flex-col items-center flex-1">
-                  <Skeleton className="h-3 w-4 mb-1" />
-                  <div className="w-full bg-secondary rounded-t-md h-20"></div>
-                  <Skeleton className="h-3 w-4 mt-1" />
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
         <PlannerPanel open={plannerOpen} onOpenChange={setPlannerOpen} token={token} />
       </div>
     );
@@ -308,7 +288,6 @@ export default function DashboardPage() {
     upcoming_exams,
     upcoming_projects,
     counts,
-    workload_next_7_days,
     course_summaries,
     completed
   } = dashboardData;
@@ -652,35 +631,6 @@ export default function DashboardPage() {
           </Card>
         </div>
       )}
-
-      {/* Workload */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Workload Next 7 Days</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {workload_next_7_days && workload_next_7_days.length > 0 ? (
-            <div className="flex items-end justify-between h-32 gap-2">
-              {workload_next_7_days.map((dayData) => (
-                <div key={dayData.date} className="flex flex-col items-center flex-1">
-                  <div className="text-xs text-muted-foreground mb-1">
-                    {new Date(dayData.date).toLocaleDateString('en-US', { weekday: 'short' })}
-                  </div>
-                  <div 
-                    className="w-full bg-secondary rounded-t-md"
-                    style={{ height: `${Math.max(20, dayData.count * 10)}%` }}
-                  ></div>
-                  <div className="text-xs mt-1">{dayData.count}</div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-4 text-muted-foreground">
-              No workload data available
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       <PlannerPanel open={plannerOpen} onOpenChange={setPlannerOpen} token={token} />
     </div>
