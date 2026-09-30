@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SemesterHeading } from "@/components/semesters/semester-heading";
 import { SemesterProgress } from "@/components/semester-progress";
-import { CalendarIcon, ClockIcon, TargetIcon } from "lucide-react";
+import { CalendarIcon, ClockIcon, ListChecksIcon, TargetIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { fetchDashboard } from "@/lib/dashboard-api";
 import { fetchSemesters } from "@/lib/semesters-api";
@@ -14,6 +14,7 @@ import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { formatWallClockDateShort, parseWallClockDate } from "@/lib/date-helpers";
+import { PlannerPanel } from "@/components/planner/planner-panel";
 
 function CalendarToggleButton() {
   return (
@@ -25,6 +26,14 @@ function CalendarToggleButton() {
   );
 }
 
+function PlannerToggleButton({ onClick }) {
+  return (
+    <Button variant="ghost" size="icon" aria-label="Planner" onClick={onClick}>
+      <ListChecksIcon className="h-5 w-5" />
+    </Button>
+  );
+}
+
 export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -33,6 +42,7 @@ export default function DashboardPage() {
   const [semesters, setSemesters] = useState([]);
   const [showOverdue, setShowOverdue] = useState(false);
   const [token, setToken] = useState(null);
+  const [plannerOpen, setPlannerOpen] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -123,6 +133,7 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-2">
             <CalendarToggleButton />
+            <PlannerToggleButton onClick={() => setPlannerOpen(true)} />
             <ThemeToggle />
           </div>
         </div>
@@ -252,6 +263,7 @@ export default function DashboardPage() {
             </div>
           </CardContent>
         </Card>
+        <PlannerPanel open={plannerOpen} onOpenChange={setPlannerOpen} token={token} />
       </div>
     );
   }
@@ -268,10 +280,12 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-2">
             <CalendarToggleButton />
+            <PlannerToggleButton onClick={() => setPlannerOpen(true)} />
             <ThemeToggle />
           </div>
         </div>
         <div className="text-destructive">{error}</div>
+        <PlannerPanel open={plannerOpen} onOpenChange={setPlannerOpen} token={token} />
       </div>
     );
   }
@@ -319,6 +333,7 @@ export default function DashboardPage() {
         </div>
         <div className="flex items-center gap-2">
           <CalendarToggleButton />
+          <PlannerToggleButton onClick={() => setPlannerOpen(true)} />
           <ThemeToggle />
         </div>
       </div>
@@ -666,6 +681,8 @@ export default function DashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      <PlannerPanel open={plannerOpen} onOpenChange={setPlannerOpen} token={token} />
     </div>
   );
 }

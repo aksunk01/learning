@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { HomeIcon, BookOpenIcon, CalendarIcon, PanelLeft, X, Sparkles, ListChecks, LogOutIcon } from "lucide-react";
+import { HomeIcon, BookOpenIcon, CalendarIcon, PanelLeft, X, Sparkles, LogOutIcon } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
 export function AppDock() {
@@ -16,7 +16,6 @@ export function AppDock() {
     pathname === "/courses" || pathname.startsWith("/courses/");
   const isAssistantActive = pathname === "/assistant";
   const isCalendarActive = pathname === "/calendar";
-  const isPlannerActive = pathname === "/planner";
 
   const handleMouseEnter = () => {
     if (timeoutRef.current) {
@@ -93,19 +92,6 @@ export function AppDock() {
               }`}
             >
               <HomeIcon className="h-5 w-5" />
-            </Link>
-
-            <Link
-              href="/planner"
-              aria-label="Planner"
-              aria-current={isPlannerActive ? "page" : undefined}
-              className={`rounded-md p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                isPlannerActive
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              }`}
-            >
-              <ListChecks className="h-5 w-5" />
             </Link>
 
             <Link
@@ -187,20 +173,6 @@ export function AppDock() {
               onClick={handleMobileCollapse}
             >
               <HomeIcon className="h-5 w-5" />
-            </Link>
-
-            <Link
-              href="/planner"
-              aria-label="Planner"
-              aria-current={isPlannerActive ? "page" : undefined}
-              className={`rounded-md p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                isPlannerActive
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              }`}
-              onClick={handleMobileCollapse}
-            >
-              <ListChecks className="h-5 w-5" />
             </Link>
 
             <Link

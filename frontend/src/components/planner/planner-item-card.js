@@ -7,21 +7,14 @@ import { CheckIcon } from "lucide-react";
 import Link from "next/link";
 import { formatWallClockDateShort } from "@/lib/date-helpers";
 
-const PRIORITY_VARIANT = {
-  Critical: "destructive",
-  High: "default",
-  Medium: "secondary",
-  Low: "outline",
-};
-
 export function PlannerItemCard({ item, onComplete, completing }) {
   return (
-    <Card className={item.is_overdue ? "border-destructive" : undefined}>
-      <CardContent className="p-4 flex items-start gap-3">
+    <Card size="sm" className={item.is_overdue ? "border-destructive" : undefined}>
+      <CardContent className="relative py-1.5 px-3 pr-9">
         <Button
           variant="outline"
-          size="icon"
-          className="shrink-0 mt-0.5"
+          size="icon-sm"
+          className="absolute top-1.5 right-1.5 shrink-0"
           aria-label="Mark complete"
           disabled={completing}
           onClick={() => onComplete(item)}
@@ -29,30 +22,25 @@ export function PlannerItemCard({ item, onComplete, completing }) {
           <CheckIcon className="h-4 w-4" />
         </Button>
 
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2 mb-1">
-            <Badge variant="secondary">{item.course_name}</Badge>
-            <Badge variant={PRIORITY_VARIANT[item.priority_level] || "outline"}>
-              {item.priority_level}
-            </Badge>
-            {item.is_overdue && <Badge variant="destructive">Overdue</Badge>}
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Badge variant="secondary" className="text-xs">{item.course_name}</Badge>
+            {item.is_overdue && <Badge variant="destructive" className="text-xs">Overdue</Badge>}
           </div>
 
           <Link
             href={`/assignments/${item.assignment_id}`}
-            className="font-medium hover:underline"
+            className="block font-medium text-sm hover:underline truncate pr-6"
           >
             {item.title}
-            {item.chunk_label ? ` (${item.chunk_label})` : ""}
           </Link>
 
-          <div className="text-sm text-muted-foreground mt-1">
-            ~{item.estimated_minutes} min
-            {item.due_at ? ` · due ${formatWallClockDateShort(item.due_at)}` : ""}
+          <div className="text-xs text-muted-foreground">
+            {item.due_at ? `Due ${formatWallClockDateShort(item.due_at)}` : "No due date"}
           </div>
 
-          {item.why && (
-            <p className="text-sm text-muted-foreground mt-2">{item.why}</p>
+          {item.reason && (
+            <p className="text-xs text-muted-foreground truncate">{item.reason}</p>
           )}
         </div>
       </CardContent>
