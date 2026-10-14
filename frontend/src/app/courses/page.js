@@ -56,8 +56,11 @@ export default function CoursesPage() {
   };
 
   const visibleCourses = useMemo(() => {
-    if (!selectedSemesterId) return courses;
-    return courses.filter((course) => course.semester_id === selectedSemesterId);
+    const filtered = selectedSemesterId
+      ? courses.filter((course) => course.semester_id === selectedSemesterId)
+      : courses;
+
+    return [...filtered].sort((a, b) => a.code.localeCompare(b.code));
   }, [courses, selectedSemesterId]);
 
   if (isLoading) {
@@ -141,7 +144,13 @@ export default function CoursesPage() {
             <Link href={`/courses/${course.id}`} key={course.id}>
               <Card className="cursor-pointer hover:shadow-md transition-shadow">
                 <CardHeader>
-                  <CardTitle>{course.name}</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <span
+                      className="h-3 w-3 rounded-full shrink-0"
+                      style={{ backgroundColor: course.color || "#3b82f6" }}
+                    />
+                    {course.name}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground mb-1">Code: {course.code}</p>

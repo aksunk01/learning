@@ -1,3 +1,4 @@
+import re
 import uuid
 from datetime import datetime
 from typing import Literal
@@ -5,6 +6,14 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from app.schemas.semester import SemesterResponse
+
+HEX_COLOR_PATTERN = re.compile(r"^#[0-9A-Fa-f]{6}$")
+
+
+def validate_hex_color(value: str) -> str:
+    if not HEX_COLOR_PATTERN.match(value):
+        raise ValueError("Color must be a hex code in the form #RRGGBB")
+    return value
 
 class CourseMeeting(BaseModel):
     days: list[Literal[
@@ -61,6 +70,12 @@ class CourseBase(BaseModel):
     description: str | None = None
     semester_id: uuid.UUID | None = None
     schedule: CourseSchedule | None = None
+    color: str = "#3b82f6"
+
+    @field_validator("color")
+    @classmethod
+    def validate_color(cls, value: str) -> str:
+        return validate_hex_color(value)
 
 
 class CourseCreate(CourseBase):
@@ -72,6 +87,14 @@ class CourseUpdate(CourseBase):
     description: str | None = None
     semester_id: uuid.UUID | None = None
     schedule: CourseSchedule | None = None
+    color: str | None = None
+
+    @field_validator("color")
+    @classmethod
+    def validate_color(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        return validate_hex_color(value)
 
 
 class CourseResponse(CourseBase):

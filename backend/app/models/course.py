@@ -50,6 +50,12 @@ class Course(Base):
         nullable=True,
     )
 
+    color: Mapped[str] = mapped_column(
+        String(7),
+        nullable=False,
+        server_default="#3b82f6",
+    )
+
     user = relationship(
         "User",
         back_populates="courses",
