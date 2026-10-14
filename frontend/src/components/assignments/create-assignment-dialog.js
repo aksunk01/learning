@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { PlusIcon } from "lucide-react";
 import { createAssignment } from "@/lib/assignments-api";
+import { fetchGradingCategories } from "@/lib/grading-api";
 import { useRouter } from "next/navigation";
 
 // Define the validation schema
@@ -24,17 +25,14 @@ const assignmentSchema = z.object({
     const num = parseFloat(value);
     return !isNaN(num) && num >= 0;
   }, "Points must be a number greater than or equal to 0"),
-  weightPercent: z.string().optional().nullable().refine((value) => {
-    if (!value) return true; // Allow empty values
-    const num = parseFloat(value);
-    return !isNaN(num) && num >= 0 && num <= 100;
-  }, "Weight percent must be a number between 0 and 100 inclusive"),
+  categoryId: z.string().optional().nullable(),
 });
 
 export function CreateAssignmentDialog({ courseId, token, onAssignmentCreated }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [categories, setCategories] = useState([]);
   const router = useRouter();
 
   const form = useForm({
@@ -45,9 +43,21 @@ export function CreateAssignmentDialog({ courseId, token, onAssignmentCreated })
       assignmentType: "",
       dueAt: "",
       points: "",
-      weightPercent: "",
+      categoryId: "",
     },
   });
+
+  // Load the course's grading categories whenever the dialog opens
+  useEffect(() => {
+    if (!isOpen || !courseId) return;
+
+    fetchGradingCategories(courseId, token)
+      .then(setCategories)
+      .catch(() => {
+        // Category dropdown just stays empty if this fails
+        setCategories([]);
+      });
+  }, [isOpen, courseId, token]);
 
 
 
@@ -62,7 +72,7 @@ export function CreateAssignmentDialog({ courseId, token, onAssignmentCreated })
       assignment_type: data.assignmentType?.trim() || null,
       due_at: data.dueAt || null,
       points: data.points ? parseFloat(data.points) : null,
-      weight_percent: data.weightPercent ? parseFloat(data.weightPercent) : null,
+      category_id: data.categoryId || null,
     };
 
     try {
@@ -164,17 +174,20 @@ export function CreateAssignmentDialog({ courseId, token, onAssignmentCreated })
               <FieldError>{form.formState.errors.points?.message}</FieldError>
             </Field>
             
-            <Field name="weightPercent">
-              <FieldLabel>Weight Percent</FieldLabel>
-              <Input 
-                type="number"
-                placeholder="Assignment weight percentage" 
-                {...form.register("weightPercent")} 
-                min="0"
-                max="100"
-                step="any"
-              />
-              <FieldError>{form.formState.errors.weightPercent?.message}</FieldError>
+            <Field name="categoryId">
+              <FieldLabel>Grading Category</FieldLabel>
+              <select
+                className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-2.5 py-1 text-base shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
+                {...form.register("categoryId")}
+              >
+                <option value="">Uncategorized</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name} ({category.weight_percent}%)
+                  </option>
+                ))}
+              </select>
+              <FieldError>{form.formState.errors.categoryId?.message}</FieldError>
             </Field>
           </FieldGroup>
           

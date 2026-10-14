@@ -36,12 +36,22 @@ function startOfMonth(date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
+const DEFAULT_COURSE_COLOR = "#3b82f6";
+
+function hexToRgba(hex, alpha) {
+  const normalized = /^#[0-9A-Fa-f]{6}$/.test(hex) ? hex : DEFAULT_COURSE_COLOR;
+  const r = parseInt(normalized.slice(1, 3), 16);
+  const g = parseInt(normalized.slice(3, 5), 16);
+  const b = parseInt(normalized.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 export default function CalendarPage() {
   const router = useRouter();
   const [token, setToken] = useState(null);
   const [monthCursor, setMonthCursor] = useState(() => startOfMonth(new Date()));
   const [assignments, setAssignments] = useState([]);
-  const [courseNames, setCourseNames] = useState({});
+  const [coursesById, setCoursesById] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeDayKey, setActiveDayKey] = useState(null);
@@ -86,8 +96,13 @@ export default function CalendarPage() {
         ]);
 
         setAssignments(assignmentsData);
-        setCourseNames(
-          Object.fromEntries(coursesData.map((course) => [course.id, course.name]))
+        setCoursesById(
+          Object.fromEntries(
+            coursesData.map((course) => [
+              course.id,
+              { name: course.name, color: course.color || DEFAULT_COURSE_COLOR },
+            ])
+          )
         );
       } catch (err) {
         if (err.status === 401 || err.status === 403) {
@@ -228,18 +243,31 @@ export default function CalendarPage() {
 
                 {hasAssignments && (
                   <div className="mt-1 flex-1 flex flex-col gap-1 overflow-hidden">
-                    {dayAssignments.slice(0, 2).map((assignment) => (
-                      <span
-                        key={assignment.id}
-                        className={`text-xs truncate px-1 rounded ${
-                          assignment.is_completed
-                            ? "line-through text-muted-foreground bg-muted"
-                            : "bg-primary/10 text-primary"
-                        }`}
-                      >
-                        {assignment.title}
-                      </span>
-                    ))}
+                    {dayAssignments.slice(0, 2).map((assignment) => {
+                      const courseColor =
+                        coursesById[assignment.course_id]?.color || DEFAULT_COURSE_COLOR;
+
+                      return (
+                        <span
+                          key={assignment.id}
+                          className={`text-xs truncate px-1 rounded ${
+                            assignment.is_completed
+                              ? "line-through text-muted-foreground bg-muted"
+                              : ""
+                          }`}
+                          style={
+                            assignment.is_completed
+                              ? undefined
+                              : {
+                                  backgroundColor: hexToRgba(courseColor, 0.15),
+                                  color: courseColor,
+                                }
+                          }
+                        >
+                          {assignment.title}
+                        </span>
+                      );
+                    })}
                     {dayAssignments.length > 2 && (
                       <span className="text-xs text-muted-foreground">
                         +{dayAssignments.length - 2} more
@@ -265,40 +293,54 @@ export default function CalendarPage() {
                           })}
                         </p>
                         <div className="space-y-2 max-h-60 overflow-y-auto">
-                          {dayAssignments.map((assignment) => (
-                            <div
-                              key={assignment.id}
-                              className="flex items-center justify-between gap-2 p-2 rounded border cursor-pointer hover:bg-muted/50 transition-colors"
-                              onClick={() => handleAssignmentClick(assignment.id)}
-                            >
-                              <div className="min-w-0">
-                                <p
-                                  className={`text-sm font-medium truncate ${
-                                    assignment.is_completed
-                                      ? "line-through text-muted-foreground"
-                                      : ""
-                                  }`}
-                                >
-                                  {assignment.title}
-                                </p>
-                                <p className="text-xs text-muted-foreground truncate">
-                                  {courseNames[assignment.course_id] || "Unknown course"}
-                                  {assignment.assignment_type
-                                    ? ` · ${assignment.assignment_type}`
-                                    : ""}
-                                </p>
-                              </div>
-                              <Badge
-                                variant={assignment.is_completed ? "secondary" : "outline"}
-                                className="shrink-0 text-xs"
+                          {dayAssignments.map((assignment) => {
+                            const courseColor =
+                              coursesById[assignment.course_id]?.color ||
+                              DEFAULT_COURSE_COLOR;
+
+                            return (
+                              <div
+                                key={assignment.id}
+                                className="flex items-center justify-between gap-2 p-2 rounded border cursor-pointer hover:bg-muted/50 transition-colors"
+                                style={{ borderLeft: `3px solid ${courseColor}` }}
+                                onClick={() => handleAssignmentClick(assignment.id)}
                               >
-                                {parseWallClockDate(assignment.due_at).toLocaleTimeString(
-                                  "en-US",
-                                  { hour: "numeric", minute: "2-digit" }
-                                )}
-                              </Badge>
-                            </div>
-                          ))}
+                                <div className="min-w-0 flex items-start gap-2">
+                                  <span
+                                    className="h-2 w-2 rounded-full shrink-0 mt-1"
+                                    style={{ backgroundColor: courseColor }}
+                                  />
+                                  <div className="min-w-0">
+                                    <p
+                                      className={`text-sm font-medium truncate ${
+                                        assignment.is_completed
+                                          ? "line-through text-muted-foreground"
+                                          : ""
+                                      }`}
+                                    >
+                                      {assignment.title}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground truncate">
+                                      {coursesById[assignment.course_id]?.name ||
+                                        "Unknown course"}
+                                      {assignment.assignment_type
+                                        ? ` · ${assignment.assignment_type}`
+                                        : ""}
+                                    </p>
+                                  </div>
+                                </div>
+                                <Badge
+                                  variant={assignment.is_completed ? "secondary" : "outline"}
+                                  className="shrink-0 text-xs"
+                                >
+                                  {parseWallClockDate(assignment.due_at).toLocaleTimeString(
+                                    "en-US",
+                                    { hour: "numeric", minute: "2-digit" }
+                                  )}
+                                </Badge>
+                              </div>
+                            );
+                          })}
                         </div>
                       </CardContent>
                     </Card>

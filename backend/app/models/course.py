@@ -50,6 +50,12 @@ class Course(Base):
         nullable=True,
     )
 
+    color: Mapped[str] = mapped_column(
+        String(7),
+        nullable=False,
+        server_default="#3b82f6",
+    )
+
     user = relationship(
         "User",
         back_populates="courses",
@@ -68,6 +74,12 @@ class Course(Base):
 
     assignments = relationship(
         "Assignment",
+        back_populates="course",
+        cascade="all, delete-orphan"
+    )
+
+    grading_categories = relationship(
+        "GradingCategory",
         back_populates="course",
         cascade="all, delete-orphan"
     )

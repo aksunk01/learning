@@ -10,19 +10,30 @@ from app.api.auth import get_current_user
 from app.db.dependencies import get_db
 from app.models.assignment import Assignment
 from app.models.assignment_material import AssignmentMaterial
+from app.models.assignment_subtask import AssignmentSubtask
 from app.models.course import Course
 from app.models.course_material import CourseMaterial
+from app.models.task_time_log import TaskTimeLog
 from app.models.user import User
 from app.schemas.assignment import (
-    AssignmentResponse, 
-    AssignmentCreate, 
-    AssignmentCompletionUpdate, 
+    AssignmentResponse,
+    AssignmentCreate,
+    AssignmentCompletionUpdate,
     AssignmentDetailResponse,
     AssignmentMaterialResponse,
     AssignmentMaterialsLinkRequest,
     AssignmentMaterialUpdate,
     AssignmentUpdate
 )
+from app.schemas.assignment_subtask import (
+    AcceptSubtasksRequest,
+    AssignmentSubtaskCreate,
+    AssignmentSubtaskResponse,
+    AssignmentSubtaskUpdate,
+    SubtaskCompletionUpdate,
+)
+from app.schemas.planner_ai import SubtaskSuggestionResult
+from app.services.planner_ai import PlannerAIService
 
 
 
@@ -378,15 +389,26 @@ def update_assignment_completion(
         )
 
     assignment.is_completed = completion_data.is_completed
-    
+
     if completion_data.is_completed:
         assignment.completed_at = datetime.now(timezone.utc)
+
+        if completion_data.actual_minutes is not None:
+            db.add(TaskTimeLog(
+                user_id=current_user.id,
+                assignment_id=assignment.id,
+                subtask_id=None,
+                course_id=assignment.course_id,
+                assignment_type=assignment.assignment_type,
+                estimated_minutes=assignment.estimated_minutes,
+                actual_minutes=completion_data.actual_minutes,
+            ))
     else:
         assignment.completed_at = None
 
     db.commit()
     db.refresh(assignment)
-    
+
     return assignment
 
 
@@ -678,3 +700,186 @@ def update_assignment(assignment_id: UUID, assignment_update: AssignmentUpdate, 
     db.refresh(assignment)
 
     return assignment
+
+
+def _get_owned_assignment(db: Session, assignment_id: UUID, user_id: UUID) -> Assignment:
+    assignment = (
+        db.query(Assignment)
+        .join(Course)
+        .filter(
+            Assignment.id == assignment_id,
+            Course.user_id == user_id
+        )
+        .first()
+    )
+
+    if not assignment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assignment not found"
+        )
+
+    return assignment
+
+
+def _get_owned_subtask(db: Session, assignment_id: UUID, subtask_id: UUID, user_id: UUID) -> AssignmentSubtask:
+    _get_owned_assignment(db, assignment_id, user_id)
+
+    subtask = (
+        db.query(AssignmentSubtask)
+        .filter(
+            AssignmentSubtask.id == subtask_id,
+            AssignmentSubtask.assignment_id == assignment_id
+        )
+        .first()
+    )
+
+    if not subtask:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Subtask not found"
+        )
+
+    return subtask
+
+
+@all_assignments_router.get("/{assignment_id}/subtasks", response_model=list[AssignmentSubtaskResponse])
+def list_subtasks(assignment_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _get_owned_assignment(db, assignment_id, current_user.id)
+
+    return (
+        db.query(AssignmentSubtask)
+        .filter(AssignmentSubtask.assignment_id == assignment_id)
+        .order_by(AssignmentSubtask.order_index.asc())
+        .all()
+    )
+
+
+@all_assignments_router.post("/{assignment_id}/subtasks", response_model=AssignmentSubtaskResponse, status_code=status.HTTP_201_CREATED)
+def create_subtask(assignment_id: UUID, subtask_data: AssignmentSubtaskCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _get_owned_assignment(db, assignment_id, current_user.id)
+
+    max_order = (
+        db.query(func.max(AssignmentSubtask.order_index))
+        .filter(AssignmentSubtask.assignment_id == assignment_id)
+        .scalar()
+    )
+
+    subtask = AssignmentSubtask(
+        assignment_id=assignment_id,
+        title=subtask_data.title,
+        estimated_minutes=subtask_data.estimated_minutes,
+        scheduled_date=subtask_data.scheduled_date,
+        order_index=(max_order + 1) if max_order is not None else 0,
+        source="manual",
+    )
+
+    db.add(subtask)
+    db.commit()
+    db.refresh(subtask)
+
+    return subtask
+
+
+@all_assignments_router.post("/{assignment_id}/subtasks/generate", response_model=SubtaskSuggestionResult)
+def generate_subtasks(assignment_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    "Ask the AI to propose a subtask breakdown. Suggestions are NOT persisted - the client reviews/edits them and calls /subtasks/accept to save."
+    assignment = _get_owned_assignment(db, assignment_id, current_user.id)
+
+    service = PlannerAIService()
+
+    return service.suggest_subtasks(
+        title=assignment.title,
+        description=assignment.description,
+        assignment_type=assignment.assignment_type,
+        points=assignment.points,
+        weight_percent=assignment.weight_percent,
+        due_at_text=assignment.due_at.isoformat() if assignment.due_at else None,
+        course_name=assignment.course.name,
+    )
+
+
+@all_assignments_router.post("/{assignment_id}/subtasks/accept", response_model=list[AssignmentSubtaskResponse])
+def accept_subtasks(assignment_id: UUID, request: AcceptSubtasksRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    "Persist a reviewed (possibly edited) list of AI-suggested subtasks."
+    _get_owned_assignment(db, assignment_id, current_user.id)
+
+    max_order = (
+        db.query(func.max(AssignmentSubtask.order_index))
+        .filter(AssignmentSubtask.assignment_id == assignment_id)
+        .scalar()
+    )
+    next_order = (max_order + 1) if max_order is not None else 0
+
+    created = []
+
+    for offset, subtask_data in enumerate(request.subtasks):
+        subtask = AssignmentSubtask(
+            assignment_id=assignment_id,
+            title=subtask_data.title,
+            estimated_minutes=subtask_data.estimated_minutes,
+            scheduled_date=subtask_data.scheduled_date,
+            order_index=next_order + offset,
+            source="ai",
+        )
+        db.add(subtask)
+        created.append(subtask)
+
+    db.commit()
+
+    for subtask in created:
+        db.refresh(subtask)
+
+    return created
+
+
+@all_assignments_router.patch("/{assignment_id}/subtasks/{subtask_id}", response_model=AssignmentSubtaskResponse)
+def update_subtask(assignment_id: UUID, subtask_id: UUID, update: AssignmentSubtaskUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    subtask = _get_owned_subtask(db, assignment_id, subtask_id, current_user.id)
+
+    for field, value in update.model_dump(exclude_unset=True).items():
+        setattr(subtask, field, value)
+
+    db.commit()
+    db.refresh(subtask)
+
+    return subtask
+
+
+@all_assignments_router.delete("/{assignment_id}/subtasks/{subtask_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_subtask(assignment_id: UUID, subtask_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    subtask = _get_owned_subtask(db, assignment_id, subtask_id, current_user.id)
+
+    db.delete(subtask)
+    db.commit()
+
+    return None
+
+
+@all_assignments_router.patch("/{assignment_id}/subtasks/{subtask_id}/completion", response_model=AssignmentSubtaskResponse)
+def update_subtask_completion(assignment_id: UUID, subtask_id: UUID, completion_data: SubtaskCompletionUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    subtask = _get_owned_subtask(db, assignment_id, subtask_id, current_user.id)
+    assignment = subtask.assignment
+
+    subtask.is_completed = completion_data.is_completed
+
+    if completion_data.is_completed:
+        subtask.completed_at = datetime.now(timezone.utc)
+
+        if completion_data.actual_minutes is not None:
+            db.add(TaskTimeLog(
+                user_id=current_user.id,
+                assignment_id=assignment.id,
+                subtask_id=subtask.id,
+                course_id=assignment.course_id,
+                assignment_type=assignment.assignment_type,
+                estimated_minutes=subtask.estimated_minutes,
+                actual_minutes=completion_data.actual_minutes,
+            ))
+    else:
+        subtask.completed_at = None
+
+    db.commit()
+    db.refresh(subtask)
+
+    return subtask

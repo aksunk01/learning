@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { updateAssignment } from "@/lib/assignments-api";
+import { fetchGradingCategories } from "@/lib/grading-api";
 import { useRouter } from "next/navigation";
 
 // Define the validation schema - matching the create dialog schema
@@ -35,11 +36,12 @@ const assignmentSchema = z.object({
     const num = parseFloat(value);
     return !isNaN(num) && num >= 0;
   }, "Points must be a number greater than or equal to 0"),
-  weightPercent: z.string().optional().nullable().refine((value) => {
+  scoreEarned: z.string().optional().nullable().refine((value) => {
     if (!value) return true; // Allow empty values
     const num = parseFloat(value);
-    return !isNaN(num) && num >= 0 && num <= 100;
-  }, "Weight percent must be a number between 0 and 100 inclusive"),
+    return !isNaN(num) && num >= 0;
+  }, "Score earned must be a number greater than or equal to 0"),
+  categoryId: z.string().optional().nullable(),
 });
 
 export function EditAssignmentDialog({ 
@@ -50,6 +52,7 @@ export function EditAssignmentDialog({
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [categories, setCategories] = useState([]);
   const router = useRouter();
 
   const form = useForm({
@@ -60,7 +63,8 @@ export function EditAssignmentDialog({
       assignmentType: "",
       dueAt: "",
       points: "",
-      weightPercent: "",
+      scoreEarned: "",
+      categoryId: "",
     },
   });
 
@@ -75,10 +79,23 @@ useEffect(() => {
         ? assignment.due_at.substring(0, 16)
         : "",
       points: assignment.points?.toString() || "",
-      weightPercent: assignment.weight_percent?.toString() || "",
+      scoreEarned: assignment.score_earned?.toString() || "",
+      categoryId: assignment.category_id || "",
     });
   }
 }, [assignment, form]);
+
+  // Load the course's grading categories whenever the dialog opens
+  useEffect(() => {
+    if (!open || !assignment?.course_id) return;
+
+    fetchGradingCategories(assignment.course_id, localStorage.getItem("access_token"))
+      .then(setCategories)
+      .catch(() => {
+        // Category dropdown just stays empty if this fails
+        setCategories([]);
+      });
+  }, [open, assignment?.course_id]);
 
 const handleOpenChange = (nextOpen) => {
   if (!nextOpen) {
@@ -98,9 +115,10 @@ const onSubmit = async (data) => {
     assignment_type: data.assignmentType?.trim() || null,
     due_at: data.dueAt || null,
     points: data.points ? parseFloat(data.points) : null,
-    weight_percent: data.weightPercent
-      ? parseFloat(data.weightPercent)
+    score_earned: data.scoreEarned
+      ? parseFloat(data.scoreEarned)
       : null,
+    category_id: data.categoryId || null,
   };
 
   try {
@@ -189,17 +207,32 @@ const onSubmit = async (data) => {
               <FieldError>{form.formState.errors.points?.message}</FieldError>
             </Field>
             
-            <Field name="weightPercent">
-              <FieldLabel>Weight Percent</FieldLabel>
-              <Input 
+            <Field name="scoreEarned">
+              <FieldLabel>Score Earned</FieldLabel>
+              <Input
                 type="number"
-                placeholder="Assignment weight percentage" 
-                {...form.register("weightPercent")} 
+                placeholder="Points you received"
+                {...form.register("scoreEarned")}
                 min="0"
-                max="100"
                 step="any"
               />
-              <FieldError>{form.formState.errors.weightPercent?.message}</FieldError>
+              <FieldError>{form.formState.errors.scoreEarned?.message}</FieldError>
+            </Field>
+
+            <Field name="categoryId">
+              <FieldLabel>Grading Category</FieldLabel>
+              <select
+                className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-2.5 py-1 text-base shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
+                {...form.register("categoryId")}
+              >
+                <option value="">Uncategorized</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name} ({category.weight_percent}%)
+                  </option>
+                ))}
+              </select>
+              <FieldError>{form.formState.errors.categoryId?.message}</FieldError>
             </Field>
           </FieldGroup>
           

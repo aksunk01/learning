@@ -1,7 +1,11 @@
+import secrets
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordRequestForm
 
+from app.core.config import settings
 from app.db.dependencies import get_db
 from app.models.user import User
 from app.schemas.user import UserCreate, UserRead, UserResponse
@@ -73,3 +77,27 @@ def login(
         "access_token": access_token,
         "token_type": "bearer",
     }
+
+
+@router.get("/magic-login")
+def magic_login(token: str, db: Session = Depends(get_db)):
+    if not settings.MAGIC_LOGIN_TOKEN or not settings.MAGIC_LOGIN_USER_EMAIL:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    if not secrets.compare_digest(token, settings.MAGIC_LOGIN_TOKEN):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+
+    user = (
+        db.query(User)
+        .filter(User.email == settings.MAGIC_LOGIN_USER_EMAIL)
+        .first()
+    )
+
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    access_token = create_access_token(data={"sub": str(user.id)})
+
+    return RedirectResponse(
+        url=f"{settings.FRONTEND_URL}/auth/magic-callback#token={access_token}"
+    )

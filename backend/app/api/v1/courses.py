@@ -25,6 +25,31 @@ def validate_semester_ownership(semester_id: UUID | None, db: Session, user_id: 
     if semester is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Semester not found")
 
+def validate_color_unique_in_semester(
+    semester_id: UUID | None,
+    color: str,
+    db: Session,
+    user_id: UUID,
+    exclude_course_id: UUID | None = None,
+) -> None:
+    if semester_id is None:
+        return
+
+    query = db.query(Course).filter(
+        Course.user_id == user_id,
+        Course.semester_id == semester_id,
+        Course.color == color,
+    )
+
+    if exclude_course_id is not None:
+        query = query.filter(Course.id != exclude_course_id)
+
+    if query.first() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Another class in this semester already uses this color",
+        )
+
 @router.post(
     "",
     response_model=CourseResponse,
@@ -33,6 +58,7 @@ def validate_semester_ownership(semester_id: UUID | None, db: Session, user_id: 
 
 def create_course(course_data: CourseCreate, db:Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     validate_semester_ownership(course_data.semester_id, db, current_user.id)
+    validate_color_unique_in_semester(course_data.semester_id, course_data.color, db, current_user.id)
 
     course = Course(
         name=course_data.name,
@@ -40,6 +66,7 @@ def create_course(course_data: CourseCreate, db:Session = Depends(get_db), curre
         description=course_data.description,
         semester_id=course_data.semester_id,
         schedule=course_data.schedule.model_dump() if course_data.schedule else None,
+        color=course_data.color,
         user_id=current_user.id
          )
 
@@ -80,6 +107,15 @@ def update_course(course_id: UUID, course_data: CourseUpdate, db: Session = Depe
 
     if "semester_id" in update_data:
         validate_semester_ownership(update_data["semester_id"], db, current_user.id)
+
+    if "semester_id" in update_data or "color" in update_data:
+        validate_color_unique_in_semester(
+            update_data.get("semester_id", course.semester_id),
+            update_data.get("color", course.color),
+            db,
+            current_user.id,
+            exclude_course_id=course.id,
+        )
 
     for field, value in update_data.items():
         setattr(course, field, value)

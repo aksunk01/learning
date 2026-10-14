@@ -6,6 +6,7 @@ import { fetchCourse } from "@/lib/courses-api";
 import { fetchCourseMaterials, processCourseMaterial } from "@/lib/course-materials-api";
 import { fetchCourseAssignments, deleteAssignment, updateAssignmentCompletion } from "@/lib/assignments-api";
 import { UploadCourseMaterialDialog } from "@/components/courses/upload-course-material-dialog";
+import { GradingTab } from "@/components/courses/grading-tab";
 import { CreateAssignmentDialog } from "@/components/assignments/create-assignment-dialog";
 import {
   AlertDialog,
@@ -27,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoreVertical, ExternalLinkIcon } from "lucide-react";
 import {EditAssignmentDialog} from "@/components/assignments/edit-assignment-dialog";
+import { EditCourseDialog } from "@/components/courses/edit-course-dialog";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
@@ -45,6 +47,7 @@ export default function CourseDetailsPage() {
   const [togglingCompletionId, setTogglingCompletionId] = useState(null);
   const [editingAssignment, setEditingAssignment] = useState(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [editCourseOpen, setEditCourseOpen] = useState(false);
 
   const params = useParams();
   const router = useRouter();
@@ -120,6 +123,10 @@ export default function CourseDetailsPage() {
     
     setEditingAssignment(assignment);
     setEditOpen(true);
+  };
+
+  const handleCourseUpdated = (updatedCourse) => {
+    setCourse((current) => ({ ...current, ...updatedCourse }));
   };
 
   const handleAssignmentUpdated = (updatedAssignment) => {
@@ -334,12 +341,30 @@ const sortedAssignments = [...assignments].sort((a, b) => {
         onOpenChange={setEditOpen}
         onUpdated={handleAssignmentUpdated}
       />
+      <EditCourseDialog
+        course={course}
+        token={token}
+        open={editCourseOpen}
+        onOpenChange={setEditCourseOpen}
+        onUpdated={handleCourseUpdated}
+      />
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Course Details</h1>
       </div>
 
       <div className="bg-card border rounded-lg p-6 mb-6">
-        <h2 className="text-2xl font-semibold mb-4">{course.name}</h2>
+        <div className="flex items-start justify-between gap-2 mb-4">
+          <div className="flex items-center gap-2">
+            <span
+              className="h-4 w-4 rounded-full shrink-0"
+              style={{ backgroundColor: course.color || "#3b82f6" }}
+            />
+            <h2 className="text-2xl font-semibold">{course.name}</h2>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setEditCourseOpen(true)}>
+            Edit Course
+          </Button>
+        </div>
 
         <p className="text-muted-foreground mb-2">
           Code: {course.code}
@@ -381,6 +406,13 @@ const sortedAssignments = [...assignments].sort((a, b) => {
             onClick={() => setActiveView('documents')}
           >
             Documents
+          </button>
+          <button
+            type="button"
+            className={`py-2 px-4 font-medium text-sm ${activeView === 'grading' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setActiveView('grading')}
+          >
+            Grading
           </button>
         </div>
 
@@ -614,7 +646,7 @@ const sortedAssignments = [...assignments].sort((a, b) => {
               </div>
             )}
           </div>
-        ) : (
+        ) : activeView === 'documents' ? (
           <div>
             <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
               <h3 className="text-xl font-semibold">Documents</h3>
@@ -675,8 +707,10 @@ const sortedAssignments = [...assignments].sort((a, b) => {
               </div>
             )}
           </div>
+        ) : (
+          <GradingTab courseId={courseId} token={token} />
         )}
-        
+
         {/* Delete Confirmation Dialog */}
         <AlertDialog open={deleteDialogOpen} onOpenChange={handleCancelDelete}>
           <AlertDialogContent>
