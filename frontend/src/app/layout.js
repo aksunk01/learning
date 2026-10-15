@@ -33,7 +33,7 @@ export default function RootLayout({ children }) {
       className={`${geistSans.variable} ${geistMono.variable} ${dmSans.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col md:flex-row">
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
@@ -41,7 +41,7 @@ export default function RootLayout({ children }) {
           disableTransitionOnChange
         >
           <AppDock />
-          {children}
+          <div className="flex min-w-0 flex-1 flex-col">{children}</div>
 
         </ThemeProvider>
       </body>
