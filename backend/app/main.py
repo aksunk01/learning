@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.db.database import engine
 from sqlalchemy import text
 from app.api import health, auth
-from app.api.v1 import users, courses, course_materials, rag, assignments, dashboard, semesters, planner, grading
+from app.api.v1 import users, courses, course_materials, rag, assignments, dashboard, semesters, planner, grading, conversations
 
 
 app = FastAPI(
@@ -39,6 +39,7 @@ app.include_router(courses.router, prefix="/api/v1")
 app.include_router(semesters.router, prefix="/api/v1")
 app.include_router(course_materials.router, prefix="/api/v1")
 app.include_router(rag.router, prefix="/api/v1")
+app.include_router(conversations.router, prefix="/api/v1")
 app.include_router(assignments.router, prefix="/api/v1")
 app.include_router(assignments.all_assignments_router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")

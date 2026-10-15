@@ -9,7 +9,8 @@ import { fetchCourses } from "@/lib/courses-api";
 import { useRouter } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { askCourseQuestionStream } from "@/lib/assistant-api";
-import { ArrowUp } from "lucide-react";
+import { fetchConversation, fetchConversations, deleteConversation } from "@/lib/conversations-api";
+import { ArrowUp, MessageSquarePlusIcon, Trash2Icon } from "lucide-react";
 
 export default function AssistantPage() {
   const [courses, setCourses] = useState([]);
@@ -20,16 +21,110 @@ export default function AssistantPage() {
   const [inputValue, setInputValue] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [chatError, setChatError] = useState("");
+  const [conversations, setConversations] = useState([]);
+  const [selectedConversationId, setSelectedConversationId] = useState(null);
+  const [isConversationsLoading, setIsConversationsLoading] = useState(false);
   const messagesEndRef = useRef(null);
   const router = useRouter();
+
+  const refreshConversations = async (courseId, token) => {
+    try {
+      const data = await fetchConversations(courseId, token);
+      setConversations(data);
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        localStorage.removeItem("access_token");
+        router.push("/login");
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedCourseId) return;
+
+    const token = localStorage.getItem("access_token");
+    let isCancelled = false;
+
+    const loadConversationsData = async () => {
+      setIsConversationsLoading(true);
+
+      try {
+        const data = await fetchConversations(selectedCourseId, token);
+        if (!isCancelled) setConversations(data);
+      } catch (err) {
+        if (!isCancelled && (err.status === 401 || err.status === 403)) {
+          localStorage.removeItem("access_token");
+          router.push("/login");
+        }
+      } finally {
+        if (!isCancelled) setIsConversationsLoading(false);
+      }
+    };
+
+    loadConversationsData();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedCourseId, router]);
+
+  const handleNewConversation = () => {
+    setSelectedConversationId(null);
+    setMessages([]);
+    setChatError("");
+  };
+
+  const handleSelectConversation = async (conversationId) => {
+    if (conversationId === selectedConversationId) return;
+
+    const token = localStorage.getItem("access_token");
+    setChatError("");
+
+    try {
+      const conversation = await fetchConversation(selectedCourseId, conversationId, token);
+      setSelectedConversationId(conversation.id);
+      setMessages(
+        conversation.messages.map((message) => ({
+          id: message.id,
+          role: message.role,
+          content: message.content,
+          sources: message.sources || []
+        }))
+      );
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        localStorage.removeItem("access_token");
+        router.push("/login");
+      } else {
+        setChatError("Failed to load conversation.");
+      }
+    }
+  };
+
+  const handleDeleteConversation = async (event, conversationId) => {
+    event.stopPropagation();
+
+    const token = localStorage.getItem("access_token");
+
+    try {
+      await deleteConversation(selectedCourseId, conversationId, token);
+      setConversations((prev) => prev.filter((c) => c.id !== conversationId));
+
+      if (conversationId === selectedConversationId) {
+        handleNewConversation();
+      }
+    } catch {
+      setChatError("Failed to delete conversation.");
+    }
+  };
 
   const handleSendMessage = async () => {
     if (!selectedCourseId) return;
     if (!inputValue.trim()) return;
     if (isGenerating) return;
-    
+
     const trimmedInput = inputValue.trim();
-    
+
     const newUserMessage = {
       id: Date.now().toString(),
       role: "user",
@@ -64,9 +159,15 @@ export default function AssistantPage() {
 
     try {
       await askCourseQuestionStream(selectedCourseId, trimmedInput, token, {
+        conversationId: selectedConversationId,
+        onConversation: (conversationId) => {
+          setSelectedConversationId(conversationId);
+        },
         onSources: (sources) => upsertAssistantMessage({ sources }),
         onToken: (_delta, fullText) => upsertAssistantMessage({ content: fullText })
       });
+
+      refreshConversations(selectedCourseId, token);
     } catch (error) {
       if (error.status === 401 || error.status === 403) {
         localStorage.removeItem("access_token");
@@ -87,7 +188,7 @@ export default function AssistantPage() {
 
   useEffect(() => {
     const token = localStorage.getItem("access_token");
-    
+
     if (!token) {
       // Redirect to login page if no token
       router.push("/login");
@@ -116,6 +217,9 @@ export default function AssistantPage() {
 
   const handleCourseChange = (value) => {
     setSelectedCourseId(value);
+    setSelectedConversationId(null);
+    setMessages([]);
+    setConversations([]);
   };
 
   return (
@@ -126,7 +230,65 @@ export default function AssistantPage() {
           <p className="text-muted-foreground">Ask questions about your course materials.</p>
         </div>
 
-        <div className="flex flex-col flex-1 min-h-0 gap-4">
+        <div className="flex flex-1 min-h-0 gap-4">
+          {/* Conversation history sidebar */}
+          {selectedCourseId && (
+            <aside className="hidden md:flex md:w-64 shrink-0 flex-col gap-2 min-h-0">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start gap-2"
+                onClick={handleNewConversation}
+              >
+                <MessageSquarePlusIcon className="h-4 w-4" />
+                New conversation
+              </Button>
+              <Card className="flex-1 min-h-0 overflow-y-auto py-2">
+                <CardContent className="p-2 space-y-1">
+                  {isConversationsLoading ? (
+                    <div className="space-y-2 p-1">
+                      <Skeleton className="h-8 w-full" />
+                      <Skeleton className="h-8 w-full" />
+                      <Skeleton className="h-8 w-full" />
+                    </div>
+                  ) : conversations.length > 0 ? (
+                    conversations.map((conversation) => (
+                      <div
+                        key={conversation.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => handleSelectConversation(conversation.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            handleSelectConversation(conversation.id);
+                          }
+                        }}
+                        className={`group flex items-center justify-between gap-1 rounded-md px-2 py-2 text-sm cursor-pointer transition-colors ${
+                          conversation.id === selectedConversationId
+                            ? "bg-muted font-medium"
+                            : "hover:bg-muted/50"
+                        }`}
+                      >
+                        <span className="truncate">{conversation.title || "New conversation"}</span>
+                        <button
+                          type="button"
+                          aria-label="Delete conversation"
+                          className="shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                          onClick={(event) => handleDeleteConversation(event, conversation.id)}
+                        >
+                          <Trash2Icon className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground px-2 py-2">No conversations yet</p>
+                  )}
+                </CardContent>
+              </Card>
+            </aside>
+          )}
+
           {/* Conversation area */}
           <div className="flex-1 flex flex-col min-h-0">
             <Card className="flex-1 flex flex-col min-h-0">

@@ -1,10 +1,10 @@
-export async function askCourseQuestion(courseId, question, token) {
+export async function askCourseQuestion(courseId, question, token, conversationId = null) {
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-  
+
   if (!baseUrl) {
     throw new Error('NEXT_PUBLIC_API_BASE_URL environment variable is not set');
   }
-  
+
   const response = await fetch(`${baseUrl}/api/v1/courses/${courseId}/ask`, {
     method: 'POST',
     headers: {
@@ -13,7 +13,8 @@ export async function askCourseQuestion(courseId, question, token) {
     },
     body: JSON.stringify({
       question: question,
-      limit: 5
+      limit: 5,
+      conversation_id: conversationId
     })
   });
 
@@ -57,7 +58,12 @@ export async function askCourseQuestion(courseId, question, token) {
   return response.json();
 }
 
-export async function askCourseQuestionStream(courseId, question, token, { onSources, onToken } = {}) {
+export async function askCourseQuestionStream(
+  courseId,
+  question,
+  token,
+  { conversationId = null, onConversation, onSources, onToken } = {}
+) {
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 
   if (!baseUrl) {
@@ -72,7 +78,8 @@ export async function askCourseQuestionStream(courseId, question, token, { onSou
     },
     body: JSON.stringify({
       question: question,
-      limit: 5
+      limit: 5,
+      conversation_id: conversationId
     })
   });
 
@@ -100,7 +107,9 @@ export async function askCourseQuestionStream(courseId, question, token, { onSou
       if (!line.trim()) continue;
       const event = JSON.parse(line);
 
-      if (event.type === "sources") {
+      if (event.type === "conversation") {
+        onConversation?.(event.conversation_id);
+      } else if (event.type === "sources") {
         sources = event.sources;
         onSources?.(sources);
       } else if (event.type === "token") {
