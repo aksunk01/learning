@@ -62,7 +62,7 @@ export async function askCourseQuestionStream(
   courseId,
   question,
   token,
-  { conversationId = null, onConversation, onSources, onToken } = {}
+  { conversationId = null, signal, onConversation, onSources, onToken } = {}
 ) {
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 
@@ -80,7 +80,8 @@ export async function askCourseQuestionStream(
       question: question,
       limit: 5,
       conversation_id: conversationId
-    })
+    }),
+    signal
   });
 
   if (!response.ok) {
@@ -95,35 +96,43 @@ export async function askCourseQuestionStream(
   let answer = "";
   let sources = [];
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop();
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
 
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      const event = JSON.parse(line);
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const event = JSON.parse(line);
 
-      if (event.type === "conversation") {
-        onConversation?.(event.conversation_id);
-      } else if (event.type === "sources") {
-        sources = event.sources;
-        onSources?.(sources);
-      } else if (event.type === "token") {
-        answer += event.text;
-        onToken?.(event.text, answer);
-      } else if (event.type === "answer") {
-        answer = event.answer;
-        sources = event.sources || [];
-        onSources?.(sources);
-        onToken?.(answer, answer);
-      } else if (event.type === "error") {
-        throw new Error(event.message);
+        if (event.type === "conversation") {
+          onConversation?.(event.conversation_id);
+        } else if (event.type === "sources") {
+          sources = event.sources;
+          onSources?.(sources);
+        } else if (event.type === "token") {
+          answer += event.text;
+          onToken?.(event.text, answer);
+        } else if (event.type === "answer") {
+          answer = event.answer;
+          sources = event.sources || [];
+          onSources?.(sources);
+          onToken?.(answer, answer);
+        } else if (event.type === "error") {
+          throw new Error(event.message);
+        }
       }
     }
+  } catch (error) {
+    if (error.name === "AbortError") {
+      return { answer, sources, aborted: true };
+    }
+
+    throw error;
   }
 
   return { answer, sources };

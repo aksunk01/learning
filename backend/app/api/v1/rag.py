@@ -65,7 +65,12 @@ def _get_or_create_conversation(
 
     conversation = Conversation(user_id=current_user.id, course_id=course_id)
     db.add(conversation)
-    db.flush()
+    # Commit immediately (not just flush) so the conversation survives even
+    # if the request is cancelled before a turn completes - otherwise the
+    # client is left holding a conversation_id that got rolled back when the
+    # session closed, and its next request 404s.
+    db.commit()
+    db.refresh(conversation)
 
     return conversation
 

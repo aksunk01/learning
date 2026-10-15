@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { askCourseQuestionStream } from "@/lib/assistant-api";
 import { fetchConversation, fetchConversations, deleteConversation } from "@/lib/conversations-api";
-import { ArrowUp, MessageSquarePlusIcon, Trash2Icon } from "lucide-react";
+import { ArrowUp, MessageSquarePlusIcon, Square, Trash2Icon } from "lucide-react";
 
 export default function AssistantPage() {
   const [courses, setCourses] = useState([]);
@@ -24,8 +24,22 @@ export default function AssistantPage() {
   const [conversations, setConversations] = useState([]);
   const [selectedConversationId, setSelectedConversationId] = useState(null);
   const [isConversationsLoading, setIsConversationsLoading] = useState(false);
-  const messagesEndRef = useRef(null);
+  const chatScrollRef = useRef(null);
+  const shouldAutoScrollRef = useRef(true);
+  const abortControllerRef = useRef(null);
   const router = useRouter();
+
+  const handleStopGenerating = () => {
+    abortControllerRef.current?.abort();
+  };
+
+  const handleChatScroll = () => {
+    const el = chatScrollRef.current;
+    if (!el) return;
+
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    shouldAutoScrollRef.current = distanceFromBottom < 24;
+  };
 
   const refreshConversations = async (courseId, token) => {
     try {
@@ -69,6 +83,7 @@ export default function AssistantPage() {
   }, [selectedCourseId, router]);
 
   const handleNewConversation = () => {
+    shouldAutoScrollRef.current = true;
     setSelectedConversationId(null);
     setMessages([]);
     setChatError("");
@@ -82,6 +97,7 @@ export default function AssistantPage() {
 
     try {
       const conversation = await fetchConversation(selectedCourseId, conversationId, token);
+      shouldAutoScrollRef.current = true;
       setSelectedConversationId(conversation.id);
       setMessages(
         conversation.messages.map((message) => ({
@@ -133,12 +149,15 @@ export default function AssistantPage() {
 
     const assistantMessageId = `${Date.now()}-assistant`;
 
+    shouldAutoScrollRef.current = true;
     setMessages(prevMessages => [...prevMessages, newUserMessage]);
     setInputValue("");
     setIsGenerating(true);
     setChatError("");
 
     const token = localStorage.getItem("access_token");
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     const upsertAssistantMessage = (updates) => {
       setMessages(prevMessages => {
@@ -158,14 +177,19 @@ export default function AssistantPage() {
     };
 
     try {
-      await askCourseQuestionStream(selectedCourseId, trimmedInput, token, {
+      const result = await askCourseQuestionStream(selectedCourseId, trimmedInput, token, {
         conversationId: selectedConversationId,
+        signal: controller.signal,
         onConversation: (conversationId) => {
           setSelectedConversationId(conversationId);
         },
         onSources: (sources) => upsertAssistantMessage({ sources }),
         onToken: (_delta, fullText) => upsertAssistantMessage({ content: fullText })
       });
+
+      if (result?.aborted && !result.answer) {
+        upsertAssistantMessage({ content: "Response cancelled." });
+      }
 
       refreshConversations(selectedCourseId, token);
     } catch (error) {
@@ -177,13 +201,21 @@ export default function AssistantPage() {
       }
     } finally {
       setIsGenerating(false);
+      abortControllerRef.current = null;
     }
   };
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({
-      behavior: "smooth"
-    });
+    if (!shouldAutoScrollRef.current) return;
+
+    // An instant jump rather than scrollIntoView({behavior: "smooth"}):
+    // streaming fires this on every token, and a smooth scroll re-triggered
+    // that often never finishes animating, so it fights (and wins against)
+    // any attempt to scroll away mid-stream regardless of the ref above.
+    const el = chatScrollRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
   }, [messages, isGenerating]);
 
   useEffect(() => {
@@ -292,7 +324,11 @@ export default function AssistantPage() {
           {/* Conversation area */}
           <div className="flex-1 flex flex-col min-h-0">
             <Card className="flex-1 flex flex-col min-h-0">
-              <CardContent className="flex-1 p-6 overflow-y-auto">
+              <CardContent
+                ref={chatScrollRef}
+                onScroll={handleChatScroll}
+                className="flex-1 p-6 overflow-y-auto"
+              >
                 {messages.length === 0 ? (
                   <div className="text-center max-w-md mx-auto">
                     <h2 className="text-xl font-semibold mb-2">Ask anything about your course materials</h2>
@@ -367,7 +403,6 @@ export default function AssistantPage() {
                         </div>
                       </div>
                     )}
-                    <div ref={messagesEndRef} />
                   </div>
                 )}
               </CardContent>
@@ -417,16 +452,28 @@ export default function AssistantPage() {
                     )}
                   </div>
 
-                  <Button 
-                    variant="default" 
-                    size="icon"
-                    className="h-8 w-8 rounded-full"
-                    disabled={!selectedCourseId || !inputValue.trim() || isGenerating}
-                    onClick={handleSendMessage}
-                    aria-label="Send message"
-                  >
-                    <ArrowUp className="h-4 w-4" />
-                  </Button>
+                  {isGenerating ? (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 rounded-full"
+                      onClick={handleStopGenerating}
+                      aria-label="Stop generating"
+                    >
+                      <Square className="h-3 w-3 fill-current" />
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="default"
+                      size="icon"
+                      className="h-8 w-8 rounded-full"
+                      disabled={!selectedCourseId || !inputValue.trim()}
+                      onClick={handleSendMessage}
+                      aria-label="Send message"
+                    >
+                      <ArrowUp className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
