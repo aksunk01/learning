@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { DEFAULT_COURSE_COLOR, courseGlowStyle } from "@/lib/colors";
 
 export default function CoursesPage() {
   const [courses, setCourses] = useState([]);
@@ -142,12 +143,15 @@ export default function CoursesPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {visibleCourses.map((course) => (
             <Link href={`/courses/${course.id}`} key={course.id}>
-              <Card className="cursor-pointer hover:shadow-md transition-shadow">
+              <Card
+                className="cursor-pointer hover:shadow-md transition-shadow"
+                style={courseGlowStyle(course.color || DEFAULT_COURSE_COLOR)}
+              >
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <span
                       className="h-3 w-3 rounded-full shrink-0"
-                      style={{ backgroundColor: course.color || "#3b82f6" }}
+                      style={{ backgroundColor: course.color || DEFAULT_COURSE_COLOR }}
                     />
                     {course.name}
                   </CardTitle>

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { fetchAssignmentsInRange } from "@/lib/assignments-api";
 import { fetchCourses } from "@/lib/courses-api";
 import { parseWallClockDate } from "@/lib/date-helpers";
+import { DEFAULT_COURSE_COLOR, hexToRgba } from "@/lib/colors";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,16 +35,6 @@ function formatDateKey(date) {
 
 function startOfMonth(date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
-}
-
-const DEFAULT_COURSE_COLOR = "#3b82f6";
-
-function hexToRgba(hex, alpha) {
-  const normalized = /^#[0-9A-Fa-f]{6}$/.test(hex) ? hex : DEFAULT_COURSE_COLOR;
-  const r = parseInt(normalized.slice(1, 3), 16);
-  const g = parseInt(normalized.slice(3, 5), 16);
-  const b = parseInt(normalized.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 export default function CalendarPage() {
