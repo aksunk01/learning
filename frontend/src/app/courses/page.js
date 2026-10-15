@@ -2,11 +2,30 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { fetchCourses } from "@/lib/courses-api";
+import { fetchCourses, deleteCourse } from "@/lib/courses-api";
 import { CreateCourseDialog } from "@/components/courses/create-course-dialog";
+import { EditCourseDialog } from "@/components/courses/edit-course-dialog";
 import { SemesterHeading } from "@/components/semesters/semester-heading";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { MoreVertical } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { DEFAULT_COURSE_COLOR, courseGlowStyle } from "@/lib/colors";
@@ -18,6 +37,12 @@ export default function CoursesPage() {
   const [error, setError] = useState("");
   const router = useRouter();
   const [token, setToken] = useState(null);
+  const [editingCourse, setEditingCourse] = useState(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [courseToDelete, setCourseToDelete] = useState(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingCourseId, setDeletingCourseId] = useState(null);
+  const [deleteError, setDeleteError] = useState("");
 
 
   useEffect(() => {
@@ -54,6 +79,68 @@ export default function CoursesPage() {
 
   const handleCourseCreated = (createdCourse) => {
     setCourses((currentCourses) => [...currentCourses, createdCourse]);
+  };
+
+  const handleCourseUpdated = (updatedCourse) => {
+    setCourses((currentCourses) =>
+      currentCourses.map((course) =>
+        course.id === updatedCourse.id ? { ...course, ...updatedCourse } : course
+      )
+    );
+  };
+
+  const handleEditCourse = (course, event) => {
+    event.stopPropagation();
+    event.preventDefault();
+    setEditingCourse(course);
+    setEditOpen(true);
+  };
+
+  const confirmDeleteCourse = (course, event) => {
+    event.stopPropagation();
+    event.preventDefault();
+    setCourseToDelete(course);
+    setDeleteError("");
+    setDeleteDialogOpen(true);
+  };
+
+  const handleCancelDelete = (open) => {
+    if (!deletingCourseId) {
+      setDeleteDialogOpen(open);
+      if (!open) {
+        setCourseToDelete(null);
+        setDeleteError("");
+      }
+    }
+  };
+
+  const handleDeleteCourse = async () => {
+    if (!courseToDelete) return;
+
+    const course = courseToDelete;
+    setDeletingCourseId(course.id);
+
+    try {
+      await deleteCourse(course.id, token);
+
+      setCourses((currentCourses) =>
+        currentCourses.filter((item) => item.id !== course.id)
+      );
+
+      setDeleteDialogOpen(false);
+      setCourseToDelete(null);
+      setDeleteError("");
+    } catch (err) {
+      if (err.message.includes("401") || err.message.includes("403")) {
+        localStorage.removeItem("access_token");
+        router.push("/login");
+        return;
+      }
+
+      setDeleteError(err.message || "Failed to delete course");
+    } finally {
+      setDeletingCourseId(null);
+    }
   };
 
   const visibleCourses = useMemo(() => {
@@ -119,6 +206,44 @@ export default function CoursesPage() {
 
   return (
     <div className="flex-1 p-6 pb-24 md:pb-6">
+      <EditCourseDialog
+        course={editingCourse}
+        token={token}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        onUpdated={handleCourseUpdated}
+      />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={handleCancelDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
+            <AlertDialogDescription>
+              Delete &quot;{courseToDelete?.name}&quot;?
+              <br />
+              This course and its assignments will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteError && (
+            <div className="text-destructive text-sm mb-2">{deleteError}</div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingCourseId === courseToDelete?.id}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                handleDeleteCourse();
+              }}
+              disabled={deletingCourseId === courseToDelete?.id}
+            >
+              {deletingCourseId === courseToDelete?.id ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="mb-8 flex justify-between items-center">
         <div>
           <SemesterHeading
@@ -144,7 +269,7 @@ export default function CoursesPage() {
           {visibleCourses.map((course) => (
             <Link href={`/courses/${course.id}`} key={course.id}>
               <Card
-                className="cursor-pointer hover:shadow-md transition-shadow"
+                className="group cursor-pointer hover:shadow-md transition-shadow"
                 style={courseGlowStyle(course.color || DEFAULT_COURSE_COLOR)}
               >
                 <CardHeader>
@@ -153,7 +278,31 @@ export default function CoursesPage() {
                       className="h-3 w-3 rounded-full shrink-0"
                       style={{ backgroundColor: course.color || DEFAULT_COURSE_COLOR }}
                     />
-                    {course.name}
+                    <span className="flex-1 truncate">{course.name}</span>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                          }}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={(e) => handleEditCourse(course, e)}>
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => confirmDeleteCourse(course, e)}>
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>

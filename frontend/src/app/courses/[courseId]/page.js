@@ -28,7 +28,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoreVertical, ExternalLinkIcon } from "lucide-react";
 import {EditAssignmentDialog} from "@/components/assignments/edit-assignment-dialog";
-import { EditCourseDialog } from "@/components/courses/edit-course-dialog";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
@@ -47,7 +46,6 @@ export default function CourseDetailsPage() {
   const [togglingCompletionId, setTogglingCompletionId] = useState(null);
   const [editingAssignment, setEditingAssignment] = useState(null);
   const [editOpen, setEditOpen] = useState(false);
-  const [editCourseOpen, setEditCourseOpen] = useState(false);
 
   const params = useParams();
   const router = useRouter();
@@ -123,10 +121,6 @@ export default function CourseDetailsPage() {
     
     setEditingAssignment(assignment);
     setEditOpen(true);
-  };
-
-  const handleCourseUpdated = (updatedCourse) => {
-    setCourse((current) => ({ ...current, ...updatedCourse }));
   };
 
   const handleAssignmentUpdated = (updatedAssignment) => {
@@ -341,13 +335,6 @@ const sortedAssignments = [...assignments].sort((a, b) => {
         onOpenChange={setEditOpen}
         onUpdated={handleAssignmentUpdated}
       />
-      <EditCourseDialog
-        course={course}
-        token={token}
-        open={editCourseOpen}
-        onOpenChange={setEditCourseOpen}
-        onUpdated={handleCourseUpdated}
-      />
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Course Details</h1>
       </div>
@@ -361,9 +348,6 @@ const sortedAssignments = [...assignments].sort((a, b) => {
             />
             <h2 className="text-2xl font-semibold">{course.name}</h2>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setEditCourseOpen(true)}>
-            Edit Course
-          </Button>
         </div>
 
         <p className="text-muted-foreground mb-2">

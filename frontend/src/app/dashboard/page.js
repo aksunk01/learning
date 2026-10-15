@@ -389,8 +389,8 @@ export default function DashboardPage() {
       <div
         key={item.id}
         className={`group flex items-center gap-3 p-3 border rounded-lg transition-all ${
-          completedStyle ? "bg-muted/40" : "cursor-pointer hover:shadow-md hover:-translate-y-px"
-        }`}
+          completedStyle ? "bg-muted/40" : ""
+        } ${onClick ? "cursor-pointer hover:shadow-md hover:-translate-y-px" : ""}`}
         style={courseGlowStyle(courseColor)}
         onClick={onClick}
       >
@@ -625,7 +625,11 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3 max-h-[320px] overflow-y-auto">
-                {completed.map((assignment) => renderWorkItem(assignment, undefined, { completedStyle: true }))}
+                {completed.map((assignment) =>
+                  renderWorkItem(assignment, () => handleAssignmentClick(assignment.id), {
+                    completedStyle: true,
+                  })
+                )}
               </div>
             </CardContent>
           </Card>
@@ -645,7 +649,16 @@ export default function DashboardPage() {
                     return (
                       <div
                         key={summary.course_id}
-                        className="p-4 border rounded-lg transition-shadow hover:shadow-md"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => router.push(`/courses/${summary.course_id}`)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            router.push(`/courses/${summary.course_id}`);
+                          }
+                        }}
+                        className="cursor-pointer p-4 border rounded-lg transition-all hover:shadow-md hover:-translate-y-px"
                         style={{ borderTop: `3px solid ${courseColor}` }}
                       >
                         <h3 className="font-medium truncate">{summary.course_name}</h3>
