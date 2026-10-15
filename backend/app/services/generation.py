@@ -1,12 +1,15 @@
+import json
+import time
 from typing import Iterator
 
-from google.genai import types, errors
+import httpx
 
-import time
+from app.core.config import settings
 
-from app.services.gemini_client_pool import GeminiClientPool
+GENERATION_MODEL = settings.OLLAMA_GENERATION_MODEL
 
-GENERATION_MODEL = "gemini-3.6-flash"
+_MAX_ATTEMPTS = 3
+_REQUEST_TIMEOUT = 120.0
 
 SYSTEM_INSTRUCTION = (
     "You are an academic assistant. "
@@ -28,6 +31,10 @@ SYSTEM_INSTRUCTION = (
 )
 
 
+class GenerationError(Exception):
+    """Raised when the Ollama generation backend can't be reached or fails."""
+
+
 def _build_prompt(question: str, context: str) -> str:
     return f"""
         Question:
@@ -38,75 +45,137 @@ def _build_prompt(question: str, context: str) -> str:
         """
 
 
+def _payload(question: str, context: str, *, model: str, stream: bool) -> dict:
+    return {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": SYSTEM_INSTRUCTION},
+            {"role": "user", "content": _build_prompt(question, context)},
+        ],
+        "think": False,
+        "stream": stream,
+        "options": {"temperature": 0.1},
+    }
+
+
 class GenerationService:
-    def __init__(self)-> None:
-        self.pool = GeminiClientPool()
+    def __init__(self) -> None:
+        self.base_url = settings.OLLAMA_BASE_URL.rstrip("/")
+        self.model = settings.OLLAMA_GENERATION_MODEL
+        self._client = httpx.Client(timeout=_REQUEST_TIMEOUT)
+
+    def _connection_error(self) -> GenerationError:
+        return GenerationError(
+            f"Could not connect to Ollama at {self.base_url}. Check that the "
+            f"server is running and reachable (e.g. over Tailscale) and that "
+            f"OLLAMA_BASE_URL is correct."
+        )
+
+    def _timeout_error(self) -> GenerationError:
+        return GenerationError(
+            f"Ollama request to {self.base_url} timed out after {_REQUEST_TIMEOUT}s."
+        )
+
+    def _missing_model_error(self) -> GenerationError:
+        return GenerationError(
+            f"Ollama model '{self.model}' is not available at {self.base_url}. "
+            f"Pull it first with: ollama pull {self.model}"
+        )
 
     def generate_answer(self, question: str, context: str) -> str:
-        prompt = _build_prompt(question, context)
+        payload = _payload(question, context, model=self.model, stream=False)
+        last_error: GenerationError | None = None
 
-        def call(client):
-            return client.models.generate_content(
-                model=GENERATION_MODEL,
-                contents = prompt,
-                config= types.GenerateContentConfig(
-                    temperature=0.1,
-                    system_instruction=SYSTEM_INSTRUCTION
-                )
-            )
-
-        max_attempts = 3
-
-        for attempt in range(1, max_attempts + 1):
+        for attempt in range(1, _MAX_ATTEMPTS + 1):
             try:
-                response = self.pool.run(call)
-                break
-            except errors.APIError as e:
-                # 429 here means every configured key's quota is exhausted
-                # (GeminiClientPool already tried falling back internally).
-                if e.code != 503:
-                    raise
+                response = self._client.post(f"{self.base_url}/api/chat", json=payload)
+            except httpx.ConnectError:
+                last_error = self._connection_error()
+            except httpx.TimeoutException:
+                last_error = self._timeout_error()
+            else:
+                if response.status_code == 404:
+                    raise self._missing_model_error()
 
-                if attempt == max_attempts:
-                    raise
+                if response.status_code >= 500:
+                    last_error = GenerationError(
+                        f"Ollama server error ({response.status_code}) from "
+                        f"{self.base_url}: {response.text}"
+                    )
+                elif not response.is_success:
+                    raise GenerationError(
+                        f"Ollama generation request failed "
+                        f"({response.status_code}): {response.text}"
+                    )
+                else:
+                    answer = response.json().get("message", {}).get("content")
 
-                time.sleep(2**(attempt-1))
+                    if not answer:
+                        raise GenerationError("Ollama returned an empty response")
 
-        if not response.text:
-            raise ValueError("Gemini returned an empty response")
+                    return answer
 
-        return response.text
+            if attempt < _MAX_ATTEMPTS:
+                time.sleep(2 ** (attempt - 1))
+
+        raise last_error
 
     def stream_answer(self, question: str, context: str) -> Iterator[str]:
         """Yield the answer incrementally as text deltas arrive from the model."""
-        prompt = _build_prompt(question, context)
+        payload = _payload(question, context, model=self.model, stream=True)
+        last_error: GenerationError | None = None
+        response: httpx.Response | None = None
 
-        def call(client):
-            return client.models.generate_content_stream(
-                model=GENERATION_MODEL,
-                contents = prompt,
-                config= types.GenerateContentConfig(
-                    temperature=0.1,
-                    system_instruction=SYSTEM_INSTRUCTION
-                )
-            )
-
-        max_attempts = 3
-
-        for attempt in range(1, max_attempts + 1):
+        for attempt in range(1, _MAX_ATTEMPTS + 1):
             try:
-                stream = self.pool.run(call)
+                request = self._client.build_request(
+                    "POST", f"{self.base_url}/api/chat", json=payload
+                )
+                response = self._client.send(request, stream=True)
+            except httpx.ConnectError:
+                last_error = self._connection_error()
+            except httpx.TimeoutException:
+                last_error = self._timeout_error()
+            else:
+                if response.status_code == 404:
+                    response.close()
+                    raise self._missing_model_error()
 
-                for chunk in stream:
-                    if chunk.text:
-                        yield chunk.text
+                if response.status_code >= 500:
+                    last_error = GenerationError(
+                        f"Ollama server error ({response.status_code}) from "
+                        f"{self.base_url}: {response.read().decode(errors='replace')}"
+                    )
+                    response.close()
+                elif not response.is_success:
+                    body = response.read().decode(errors="replace")
+                    response.close()
+                    raise GenerationError(
+                        f"Ollama generation request failed "
+                        f"({response.status_code}): {body}"
+                    )
+                else:
+                    break
 
-                return
-            except errors.APIError as e:
-                if e.code != 503:
-                    raise
+            if attempt < _MAX_ATTEMPTS:
+                time.sleep(2 ** (attempt - 1))
+            response = None
 
-                if attempt == max_attempts:
-                    raise
+        if response is None:
+            raise last_error
 
-                time.sleep(2**(attempt-1))
+        try:
+            for line in response.iter_lines():
+                if not line.strip():
+                    continue
+
+                event = json.loads(line)
+                delta = event.get("message", {}).get("content")
+
+                if delta:
+                    yield delta
+
+                if event.get("done"):
+                    return
+        finally:
+            response.close()

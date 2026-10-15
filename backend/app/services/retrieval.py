@@ -7,7 +7,15 @@ from app.models.course_material import CourseMaterial
 from app.models.document_chunk import DocumentChunk
 from app.services.embedding import EmbeddingService
 
-MAX_COSINE_DISTANCE = 0.45
+# Tuned for nomic-embed-text's cosine-distance distribution (Ollama). This is
+# noticeably looser than the 0.45 that worked for Gemini's embedding space -
+# nomic-embed-text puts legitimately relevant matches (e.g. a short query
+# like "project 1" against its syllabus entry) as high as ~0.48, so a 0.45
+# cutoff was silently discarding valid matches and returning "no relevant
+# material" for real questions. Retrieval recall is intentionally favored
+# here; the generation system prompt already instructs the model to say so
+# when the retrieved material doesn't actually answer the question.
+MAX_COSINE_DISTANCE = 0.55
 
 class RetrievalService:
 

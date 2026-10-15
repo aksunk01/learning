@@ -31,6 +31,14 @@ class Settings(BaseSettings):
     GOOGLE_API_KEY: str
     GOOGLE_API_KEY_FALLBACKS: str = ""
 
+    # Self-hosted Ollama instance used for embeddings and RAG answer
+    # generation. Reachable over Tailscale MagicDNS by default. Gemini
+    # (GOOGLE_API_KEY above) is still used for non-RAG features (assignment
+    # extraction, grading extraction, planner suggestions).
+    OLLAMA_BASE_URL: str = "http://ollama-server:11434"
+    OLLAMA_EMBEDDING_MODEL: str = "nomic-embed-text"
+    OLLAMA_GENERATION_MODEL: str = "qwen3:1.7b"
+
     class Config:
         env_file= ".env"
 
