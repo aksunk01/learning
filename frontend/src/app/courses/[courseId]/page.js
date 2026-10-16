@@ -8,6 +8,7 @@ import { fetchCourseAssignments, deleteAssignment, updateAssignmentCompletion } 
 import { UploadCourseMaterialDialog } from "@/components/courses/upload-course-material-dialog";
 import { GradingTab } from "@/components/courses/grading-tab";
 import { fetchCourseGrade } from "@/lib/grading-api";
+import { GradeGauge } from "@/components/courses/grade-gauge";
 import { CreateAssignmentDialog } from "@/components/assignments/create-assignment-dialog";
 import {
   AlertDialog,
@@ -474,11 +475,9 @@ const sortedAssignments = [...assignments].sort((a, b) => {
               {course.name}
             </h2>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {grade?.overall_percent != null && (
-              <span className="bg-primary/10 text-primary text-sm font-semibold px-3 py-1 rounded-full">
-                Grade: {grade.overall_percent.toFixed(1)}%
-              </span>
+              <GradeGauge percent={grade.overall_percent} />
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
