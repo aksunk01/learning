@@ -28,7 +28,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreVertical, ExternalLinkIcon } from "lucide-react";
+import { MoreVertical, MoreHorizontal, ExternalLinkIcon } from "lucide-react";
 import {EditAssignmentDialog} from "@/components/assignments/edit-assignment-dialog";
 import { EditCourseDialog } from "@/components/courses/edit-course-dialog";
 import { Button } from "@/components/ui/button";
@@ -468,27 +468,24 @@ const sortedAssignments = [...assignments].sort((a, b) => {
         <h1 className="text-3xl font-bold tracking-tight">Course Details</h1>
       </div>
 
-      <div className="bg-card border rounded-lg p-6 mb-6 flex items-center justify-between gap-6">
+      <div className="relative bg-card border rounded-lg p-6 mb-6 flex items-center justify-between gap-6">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="absolute top-3 right-3">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setEditCourseOpen(true)}>
+              Edit
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2 mb-4">
-            <div className="flex items-center gap-2">
-              <h2 className="text-2xl font-semibold">
-                {course.name}
-              </h2>
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setEditCourseOpen(true)}>
-                  Edit
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          <h2 className="text-2xl font-semibold mb-4 pr-8">
+            {course.name}
+          </h2>
 
           <p className="text-muted-foreground mb-2">
             Code: {course.code}
