@@ -11,8 +11,20 @@ export function hexToRgba(hex, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-export function courseGlowStyle(hex) {
+export function courseGlowStyle(hex, intensity = 1) {
   return {
-    backgroundColor: hexToRgba(hex, 0.08),
+    backgroundColor: hexToRgba(hex, 0.08 * intensity),
   };
+}
+
+export function coursePageTintStyle(hex, intensity = 1) {
+  return {
+    backgroundColor: hexToRgba(hex, 0.03 * intensity),
+  };
+}
+
+// Full-saturation accents (dots, left borders, badge text) that fade toward
+// transparent as intensity drops, rather than toward a fixed muted color.
+export function courseAccentColor(hex, intensity = 1) {
+  return hexToRgba(hex, intensity);
 }

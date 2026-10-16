@@ -6,7 +6,8 @@ import Link from "next/link";
 import { fetchAssignmentsInRange } from "@/lib/assignments-api";
 import { fetchCourses } from "@/lib/courses-api";
 import { parseWallClockDate } from "@/lib/date-helpers";
-import { DEFAULT_COURSE_COLOR, hexToRgba } from "@/lib/colors";
+import { DEFAULT_COURSE_COLOR, hexToRgba, courseAccentColor } from "@/lib/colors";
+import { useColorIntensity } from "@/components/providers/color-intensity-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,7 @@ function startOfMonth(date) {
 }
 
 export default function CalendarPage() {
+  const { intensityFactor } = useColorIntensity();
   const router = useRouter();
   const [token, setToken] = useState(null);
   const [monthCursor, setMonthCursor] = useState(() => startOfMonth(new Date()));
@@ -259,7 +261,7 @@ export default function CalendarPage() {
                             assignment.is_completed
                               ? undefined
                               : {
-                                  backgroundColor: hexToRgba(courseColor, 0.15),
+                                  backgroundColor: hexToRgba(courseColor, 0.15 * intensityFactor),
                                   color: courseColor,
                                 }
                           }
@@ -302,13 +304,13 @@ export default function CalendarPage() {
                               <div
                                 key={assignment.id}
                                 className="flex items-center justify-between gap-2 p-2 rounded border cursor-pointer hover:bg-muted/50 transition-colors"
-                                style={{ borderLeft: `3px solid ${courseColor}` }}
+                                style={{ borderLeft: `3px solid ${courseAccentColor(courseColor, intensityFactor)}` }}
                                 onClick={() => handleAssignmentClick(assignment.id)}
                               >
                                 <div className="min-w-0 flex items-start gap-2">
                                   <span
                                     className="h-2 w-2 rounded-full shrink-0 mt-1"
-                                    style={{ backgroundColor: courseColor }}
+                                    style={{ backgroundColor: courseAccentColor(courseColor, intensityFactor) }}
                                   />
                                   <div className="min-w-0">
                                     <p

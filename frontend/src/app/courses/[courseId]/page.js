@@ -31,8 +31,11 @@ import {EditAssignmentDialog} from "@/components/assignments/edit-assignment-dia
 import { EditCourseDialog } from "@/components/courses/edit-course-dialog";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { DEFAULT_COURSE_COLOR, coursePageTintStyle } from "@/lib/colors";
+import { useColorIntensity } from "@/components/providers/color-intensity-provider";
 
 export default function CourseDetailsPage() {
+  const { intensityFactor } = useColorIntensity();
   const [course, setCourse] = useState(null);
   const [materials, setMaterials] = useState([]);
   const [assignments, setAssignments] = useState([]);
@@ -332,8 +335,10 @@ const sortedAssignments = [...assignments].sort((a, b) => {
   return a.due_at.localeCompare(b.due_at);
 });
 
+  const courseColor = course.color || DEFAULT_COURSE_COLOR;
+
   return (
-    <div className="flex-1 p-6 pb-24 md:pb-6">
+    <div className="flex-1 p-6 pb-24 md:pb-6" style={coursePageTintStyle(courseColor, intensityFactor)}>
       <PageBreadcrumb items={breadcrumbItems} />
       <EditAssignmentDialog
         assignment={editingAssignment}
@@ -355,11 +360,9 @@ const sortedAssignments = [...assignments].sort((a, b) => {
       <div className="bg-card border rounded-lg p-6 mb-6">
         <div className="flex items-start justify-between gap-2 mb-4">
           <div className="flex items-center gap-2">
-            <span
-              className="h-4 w-4 rounded-full shrink-0"
-              style={{ backgroundColor: course.color || "#3b82f6" }}
-            />
-            <h2 className="text-2xl font-semibold">{course.name}</h2>
+            <h2 className="text-2xl font-semibold">
+              {course.name}
+            </h2>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
