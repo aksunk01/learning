@@ -8,6 +8,7 @@ from app.api.v1.assignments import (
     query_overdue_assignments,
     query_upcoming_assignments,
 )
+from app.core.config import settings
 from app.models.conversation import Conversation
 from app.models.course import Course
 from app.services.generation import GenerationService, TASK_SYSTEM_INSTRUCTION
@@ -354,7 +355,8 @@ Source: {material.file_name}, {location}
                 question=question,
                 context=task_context,
                 history=history,
-                system_instruction=TASK_SYSTEM_INSTRUCTION
+                system_instruction=TASK_SYSTEM_INSTRUCTION,
+                model=settings.OLLAMA_TASK_MODEL or settings.OLLAMA_GENERATION_MODEL
             )
 
             return {
@@ -406,7 +408,8 @@ Source: {material.file_name}, {location}
                 question=question,
                 context=task_context,
                 history=history,
-                system_instruction=TASK_SYSTEM_INSTRUCTION
+                system_instruction=TASK_SYSTEM_INSTRUCTION,
+                model=settings.OLLAMA_TASK_MODEL or settings.OLLAMA_GENERATION_MODEL
             ):
                 yield {"type": "token", "text": token}
 

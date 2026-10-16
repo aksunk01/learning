@@ -106,14 +106,15 @@ class GenerationService:
             f"Ollama request to {self.base_url} timed out after {_REQUEST_TIMEOUT}s."
         )
 
-    def _missing_model_error(self) -> GenerationError:
+    def _missing_model_error(self, model: str) -> GenerationError:
         return GenerationError(
-            f"Ollama model '{self.model}' is not available at {self.base_url}. "
-            f"Pull it first with: ollama pull {self.model}"
+            f"Ollama model '{model}' is not available at {self.base_url}. "
+            f"Pull it first with: ollama pull {model}"
         )
 
-    def generate_answer(self, question: str, context: str, history: list[dict] | None = None, system_instruction: str = SYSTEM_INSTRUCTION) -> str:
-        payload = _payload(question, context, history, model=self.model, stream=False, system_instruction=system_instruction)
+    def generate_answer(self, question: str, context: str, history: list[dict] | None = None, system_instruction: str = SYSTEM_INSTRUCTION, model: str | None = None) -> str:
+        model = model or self.model
+        payload = _payload(question, context, history, model=model, stream=False, system_instruction=system_instruction)
         last_error: GenerationError | None = None
 
         for attempt in range(1, _MAX_ATTEMPTS + 1):
@@ -125,7 +126,7 @@ class GenerationService:
                 last_error = self._timeout_error()
             else:
                 if response.status_code == 404:
-                    raise self._missing_model_error()
+                    raise self._missing_model_error(model)
 
                 if response.status_code >= 500:
                     last_error = GenerationError(
@@ -150,9 +151,10 @@ class GenerationService:
 
         raise last_error
 
-    def stream_answer(self, question: str, context: str, history: list[dict] | None = None, system_instruction: str = SYSTEM_INSTRUCTION) -> Iterator[str]:
+    def stream_answer(self, question: str, context: str, history: list[dict] | None = None, system_instruction: str = SYSTEM_INSTRUCTION, model: str | None = None) -> Iterator[str]:
         """Yield the answer incrementally as text deltas arrive from the model."""
-        payload = _payload(question, context, history, model=self.model, stream=True, system_instruction=system_instruction)
+        model = model or self.model
+        payload = _payload(question, context, history, model=model, stream=True, system_instruction=system_instruction)
         last_error: GenerationError | None = None
         response: httpx.Response | None = None
 
@@ -169,7 +171,7 @@ class GenerationService:
             else:
                 if response.status_code == 404:
                     response.close()
-                    raise self._missing_model_error()
+                    raise self._missing_model_error(model)
 
                 if response.status_code >= 500:
                     last_error = GenerationError(
