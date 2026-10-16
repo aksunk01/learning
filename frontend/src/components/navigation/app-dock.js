@@ -41,7 +41,7 @@ export function AppDock() {
   }
 
   const rowClass = (active) =>
-    `flex items-center gap-3 rounded-md p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+    `flex items-center gap-3 rounded-md p-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
       active
         ? "bg-primary text-primary-foreground"
         : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
