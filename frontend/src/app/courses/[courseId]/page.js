@@ -7,6 +7,7 @@ import { fetchCourseMaterials, processCourseMaterial } from "@/lib/course-materi
 import { fetchCourseAssignments, deleteAssignment, updateAssignmentCompletion } from "@/lib/assignments-api";
 import { UploadCourseMaterialDialog } from "@/components/courses/upload-course-material-dialog";
 import { GradingTab } from "@/components/courses/grading-tab";
+import { fetchCourseGrade } from "@/lib/grading-api";
 import { CreateAssignmentDialog } from "@/components/assignments/create-assignment-dialog";
 import {
   AlertDialog,
@@ -39,6 +40,7 @@ export default function CourseDetailsPage() {
   const [course, setCourse] = useState(null);
   const [materials, setMaterials] = useState([]);
   const [assignments, setAssignments] = useState([]);
+  const [grade, setGrade] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [token, setToken] = useState(null);
@@ -87,7 +89,15 @@ export default function CourseDetailsPage() {
         // Load assignments data
         const assignmentsData = await fetchCourseAssignments(courseId, storedToken);
         setAssignments(assignmentsData);
-        
+
+        // Load grade data (non-fatal if it fails)
+        try {
+          const gradeData = await fetchCourseGrade(courseId, storedToken);
+          setGrade(gradeData);
+        } catch (gradeErr) {
+          console.error("Failed to load course grade:", gradeErr);
+        }
+
         // Set token after successful authentication
         setToken(storedToken);
       } catch (err) {
@@ -464,18 +474,25 @@ const sortedAssignments = [...assignments].sort((a, b) => {
               {course.name}
             </h2>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setEditCourseOpen(true)}>
-                Edit
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-2">
+            {grade?.overall_percent != null && (
+              <span className="bg-primary/10 text-primary text-sm font-semibold px-3 py-1 rounded-full">
+                Grade: {grade.overall_percent.toFixed(1)}%
+              </span>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setEditCourseOpen(true)}>
+                  Edit
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         <p className="text-muted-foreground mb-2">
@@ -625,7 +642,7 @@ const sortedAssignments = [...assignments].sort((a, b) => {
             )}
           </div>
         ) : (
-          <GradingTab courseId={courseId} token={token} />
+          <GradingTab courseId={courseId} token={token} onGradeChange={setGrade} />
         )}
 
         {/* Delete Confirmation Dialog */}

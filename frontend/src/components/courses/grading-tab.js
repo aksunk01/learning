@@ -20,7 +20,7 @@ function formatPercent(value) {
   return value == null ? "—" : `${value.toFixed(1)}%`;
 }
 
-export function GradingTab({ courseId, token }) {
+export function GradingTab({ courseId, token, onGradeChange }) {
   const [categories, setCategories] = useState([]);
   const [grade, setGrade] = useState(null);
   const [syllabusMaterial, setSyllabusMaterial] = useState(null);
@@ -48,6 +48,7 @@ export function GradingTab({ courseId, token }) {
       ]);
       setCategories(categoriesData);
       setGrade(gradeData);
+      onGradeChange?.(gradeData);
       setSyllabusMaterial(
         materials
           .filter((m) => m.material_type?.trim().toLowerCase() === "syllabus" && m.processing_status === "completed")
