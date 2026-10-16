@@ -6,41 +6,20 @@ from sqlalchemy.orm import Session, joinedload
 from app.api.auth import get_current_user
 from app.db.dependencies import get_db
 from app.models.conversation import Conversation
-from app.models.course import Course
 from app.models.user import User
 from app.schemas.conversation import ConversationDetailResponse, ConversationResponse
 
 router = APIRouter(
-    prefix="/courses/{course_id}/conversations",
+    prefix="/conversations",
     tags=["Conversations"]
 )
 
 
-def _get_owned_course(course_id: UUID, db: Session, current_user: User) -> Course:
-    course = (
-        db.query(Course)
-        .filter(
-            Course.id == course_id,
-            Course.user_id == current_user.id
-        )
-        .first()
-    )
-
-    if course is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Course not found"
-        )
-
-    return course
-
-
-def _get_owned_conversation(course_id: UUID, conversation_id: UUID, db: Session, current_user: User) -> Conversation:
+def _get_owned_conversation(conversation_id: UUID, db: Session, current_user: User) -> Conversation:
     conversation = (
         db.query(Conversation)
         .filter(
             Conversation.id == conversation_id,
-            Conversation.course_id == course_id,
             Conversation.user_id == current_user.id
         )
         .first()
@@ -56,30 +35,22 @@ def _get_owned_conversation(course_id: UUID, conversation_id: UUID, db: Session,
 
 
 @router.get("", response_model=list[ConversationResponse])
-def get_conversations(course_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    _get_owned_course(course_id, db, current_user)
-
+def get_conversations(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     return (
         db.query(Conversation)
-        .filter(
-            Conversation.course_id == course_id,
-            Conversation.user_id == current_user.id
-        )
+        .filter(Conversation.user_id == current_user.id)
         .order_by(Conversation.updated_at.desc())
         .all()
     )
 
 
 @router.get("/{conversation_id}", response_model=ConversationDetailResponse)
-def get_conversation(course_id: UUID, conversation_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    _get_owned_course(course_id, db, current_user)
-
+def get_conversation(conversation_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     conversation = (
         db.query(Conversation)
         .options(joinedload(Conversation.messages))
         .filter(
             Conversation.id == conversation_id,
-            Conversation.course_id == course_id,
             Conversation.user_id == current_user.id
         )
         .first()
@@ -92,10 +63,8 @@ def get_conversation(course_id: UUID, conversation_id: UUID, db: Session = Depen
 
 
 @router.delete("/{conversation_id}", status_code=status.HTTP_200_OK)
-def delete_conversation(course_id: UUID, conversation_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    _get_owned_course(course_id, db, current_user)
-
-    conversation = _get_owned_conversation(course_id, conversation_id, db, current_user)
+def delete_conversation(conversation_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    conversation = _get_owned_conversation(conversation_id, db, current_user)
 
     db.delete(conversation)
     db.commit()

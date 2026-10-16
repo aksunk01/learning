@@ -22,14 +22,14 @@ async function parseErrorResponse(response, fallbackMessage) {
   return error;
 }
 
-export async function fetchConversations(courseId, token) {
+export async function fetchConversations(token) {
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 
   if (!baseUrl) {
     throw new Error('NEXT_PUBLIC_API_BASE_URL environment variable is not set');
   }
 
-  const response = await fetch(`${baseUrl}/api/v1/courses/${courseId}/conversations`, {
+  const response = await fetch(`${baseUrl}/api/v1/conversations`, {
     method: 'GET',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -44,7 +44,7 @@ export async function fetchConversations(courseId, token) {
   return response.json();
 }
 
-export async function fetchConversation(courseId, conversationId, token) {
+export async function fetchConversation(conversationId, token) {
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 
   if (!baseUrl) {
@@ -52,7 +52,7 @@ export async function fetchConversation(courseId, conversationId, token) {
   }
 
   const response = await fetch(
-    `${baseUrl}/api/v1/courses/${courseId}/conversations/${conversationId}`,
+    `${baseUrl}/api/v1/conversations/${conversationId}`,
     {
       method: 'GET',
       headers: {
@@ -69,7 +69,7 @@ export async function fetchConversation(courseId, conversationId, token) {
   return response.json();
 }
 
-export async function deleteConversation(courseId, conversationId, token) {
+export async function deleteConversation(conversationId, token) {
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 
   if (!baseUrl) {
@@ -77,7 +77,7 @@ export async function deleteConversation(courseId, conversationId, token) {
   }
 
   const response = await fetch(
-    `${baseUrl}/api/v1/courses/${courseId}/conversations/${conversationId}`,
+    `${baseUrl}/api/v1/conversations/${conversationId}`,
     {
       method: 'DELETE',
       headers: {

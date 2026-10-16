@@ -87,5 +87,4 @@ class Course(Base):
     conversations = relationship(
         "Conversation",
         back_populates="course",
-        cascade="all, delete-orphan"
     )

@@ -20,7 +20,7 @@ class ConversationResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    course_id: uuid.UUID
+    course_id: uuid.UUID | None
     title: str | None
     created_at: datetime
     updated_at: datetime

@@ -12,13 +12,13 @@ from app.models.chat_message import ChatMessage
 from app.models.conversation import Conversation
 from app.models.course import Course
 from app.models.user import User
-from app.schemas.rag import CourseQuestionRequest, CourseQuestionResponse
+from app.schemas.rag import AskRequest, AskResponse
 from app.services.rag import RAGService
 
 
 router = APIRouter(
-    prefix="/courses/{course_id}",
-    tags=["RAG"]
+    prefix="/assistant",
+    tags=["Assistant"]
 )
 
 
@@ -42,8 +42,8 @@ def _get_owned_course(course_id: UUID, db: Session, current_user: User) -> Cours
 
 
 def _get_or_create_conversation(
-    course_id: UUID,
     conversation_id: UUID | None,
+    course_id: UUID | None,
     db: Session,
     current_user: User
 ) -> Conversation:
@@ -52,7 +52,6 @@ def _get_or_create_conversation(
             db.query(Conversation)
             .filter(
                 Conversation.id == conversation_id,
-                Conversation.course_id == course_id,
                 Conversation.user_id == current_user.id
             )
             .first()
@@ -86,26 +85,28 @@ def _record_turn(db: Session, conversation: Conversation, question: str, answer:
     db.commit()
 
 
-@router.post("/ask",response_model=CourseQuestionResponse)
-def ask_course(course_id: UUID, request: CourseQuestionRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    _get_owned_course(course_id, db, current_user)
+@router.post("/ask", response_model=AskResponse)
+def ask(request: AskRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if request.course_id is not None:
+        _get_owned_course(request.course_id, db, current_user)
 
-    conversation = _get_or_create_conversation(course_id, request.conversation_id, db, current_user)
+    conversation = _get_or_create_conversation(request.conversation_id, request.course_id, db, current_user)
 
     service = RAGService()
 
     try:
-        result = service.ask_course(
+        result = service.ask(
             db=db,
             user_id=current_user.id,
-            course_id=course_id,
             question=request.question,
-            limit=request.limit
+            limit=request.limit,
+            course_id=request.course_id,
+            conversation=conversation
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to answer course question: {e}"
+            detail=f"Failed to answer question: {e}"
         )
 
     _record_turn(db, conversation, request.question, result["answer"], result["sources"])
@@ -114,10 +115,11 @@ def ask_course(course_id: UUID, request: CourseQuestionRequest, db: Session = De
 
 
 @router.post("/ask/stream")
-def ask_course_stream(course_id: UUID, request: CourseQuestionRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    _get_owned_course(course_id, db, current_user)
+def ask_stream(request: AskRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if request.course_id is not None:
+        _get_owned_course(request.course_id, db, current_user)
 
-    conversation = _get_or_create_conversation(course_id, request.conversation_id, db, current_user)
+    conversation = _get_or_create_conversation(request.conversation_id, request.course_id, db, current_user)
 
     service = RAGService()
 
@@ -128,12 +130,13 @@ def ask_course_stream(course_id: UUID, request: CourseQuestionRequest, db: Sessi
         yield json.dumps({"type": "conversation", "conversation_id": str(conversation.id)}) + "\n"
 
         try:
-            for event in service.ask_course_stream(
+            for event in service.ask_stream(
                 db=db,
                 user_id=current_user.id,
-                course_id=course_id,
                 question=request.question,
-                limit=request.limit
+                limit=request.limit,
+                course_id=request.course_id,
+                conversation=conversation
             ):
                 if event["type"] == "sources":
                     sources = event["sources"]
