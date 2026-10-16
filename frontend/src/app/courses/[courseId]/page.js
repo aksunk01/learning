@@ -468,17 +468,14 @@ const sortedAssignments = [...assignments].sort((a, b) => {
         <h1 className="text-3xl font-bold tracking-tight">Course Details</h1>
       </div>
 
-      <div className="bg-card border rounded-lg p-6 mb-6">
-        <div className="flex items-start justify-between gap-2 mb-4">
-          <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-semibold">
-              {course.name}
-            </h2>
-          </div>
-          <div className="flex items-center gap-3">
-            {grade?.overall_percent != null && (
-              <GradeGauge percent={grade.overall_percent} />
-            )}
+      <div className="bg-card border rounded-lg p-6 mb-6 flex items-center justify-between gap-6">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2 mb-4">
+            <div className="flex items-center gap-2">
+              <h2 className="text-2xl font-semibold">
+                {course.name}
+              </h2>
+            </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon">
@@ -492,22 +489,26 @@ const sortedAssignments = [...assignments].sort((a, b) => {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+
+          <p className="text-muted-foreground mb-2">
+            Code: {course.code}
+          </p>
+
+          {course.semester && (
+            <p className="text-muted-foreground mb-2">
+              Semester: {course.semester.name}
+            </p>
+          )}
+
+          {course.description && (
+            <p className="text-muted-foreground mt-4">
+              {course.description}
+            </p>
+          )}
         </div>
 
-        <p className="text-muted-foreground mb-2">
-          Code: {course.code}
-        </p>
-
-        {course.semester && (
-          <p className="text-muted-foreground mb-2">
-            Semester: {course.semester.name}
-          </p>
-        )}
-
-        {course.description && (
-          <p className="text-muted-foreground mt-4">
-            {course.description}
-          </p>
+        {grade?.overall_percent != null && (
+          <GradeGauge percent={grade.overall_percent} />
         )}
       </div>
 
