@@ -2,6 +2,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { DM_Sans } from 'next/font/google';
 import "./globals.css";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { ColorIntensityProvider } from "@/components/providers/color-intensity-provider";
+import { KanbanColumnsProvider } from "@/components/providers/kanban-columns-provider";
 import { AppDock } from "@/components/navigation/app-dock";
 
 const geistSans = Geist({
@@ -40,9 +42,12 @@ export default function RootLayout({ children }) {
           enableSystem
           disableTransitionOnChange
         >
-          <AppDock />
-          <div className="flex min-w-0 flex-1 flex-col">{children}</div>
-
+          <ColorIntensityProvider>
+            <KanbanColumnsProvider>
+              <AppDock />
+              <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+            </KanbanColumnsProvider>
+          </ColorIntensityProvider>
         </ThemeProvider>
       </body>
     </html>

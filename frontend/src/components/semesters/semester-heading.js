@@ -17,10 +17,18 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ChevronDownIcon, PencilIcon } from "lucide-react";
+import { ChevronDownIcon, PencilIcon, StarIcon } from "lucide-react";
 import { fetchSemesters, updateSemester } from "@/lib/semesters-api";
 
-export function SemesterHeading({ token, value, onChange, onSemesterUpdated, className = "" }) {
+export function SemesterHeading({
+  token,
+  value,
+  onChange,
+  onSemesterUpdated,
+  favoriteSemesterId,
+  onToggleFavorite,
+  className = "",
+}) {
   const [semesters, setSemesters] = useState([]);
   const [editingSemester, setEditingSemester] = useState(null);
   const [editName, setEditName] = useState("");
@@ -112,28 +120,49 @@ export function SemesterHeading({ token, value, onChange, onSemesterUpdated, cla
           <DropdownMenuItem onClick={() => onChange(null)}>
             All Semesters
           </DropdownMenuItem>
-          {semesters.map((semester) => (
-            <DropdownMenuItem
-              key={semester.id}
-              onClick={() => onChange(semester.id)}
-              className="flex items-center justify-between gap-2"
-            >
-              <span>{semester.name}</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  event.preventDefault();
-                  openEditDialog(semester);
-                }}
+          {semesters.map((semester) => {
+            const isFavorite = favoriteSemesterId === semester.id;
+
+            return (
+              <DropdownMenuItem
+                key={semester.id}
+                onClick={() => onChange(semester.id)}
+                className="flex items-center justify-between gap-2"
               >
-                <PencilIcon />
-                <span className="sr-only">Edit {semester.name}</span>
-              </Button>
-            </DropdownMenuItem>
-          ))}
+                <span>{semester.name}</span>
+                <span className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      event.preventDefault();
+                      onToggleFavorite?.(isFavorite ? null : semester.id);
+                    }}
+                  >
+                    <StarIcon className={isFavorite ? "fill-current text-amber-500" : ""} />
+                    <span className="sr-only">
+                      {isFavorite ? `Unfavorite ${semester.name}` : `Favorite ${semester.name}`}
+                    </span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      event.preventDefault();
+                      openEditDialog(semester);
+                    }}
+                  >
+                    <PencilIcon />
+                    <span className="sr-only">Edit {semester.name}</span>
+                  </Button>
+                </span>
+              </DropdownMenuItem>
+            );
+          })}
         </DropdownMenuContent>
       </DropdownMenu>
 

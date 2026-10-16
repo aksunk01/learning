@@ -29,8 +29,10 @@ import { MoreVertical } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { DEFAULT_COURSE_COLOR, courseGlowStyle } from "@/lib/colors";
+import { useColorIntensity } from "@/components/providers/color-intensity-provider";
 
 export default function CoursesPage() {
+  const { intensityFactor } = useColorIntensity();
   const [courses, setCourses] = useState([]);
   const [selectedSemesterId, setSelectedSemesterId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -270,14 +272,10 @@ export default function CoursesPage() {
             <Link href={`/courses/${course.id}`} key={course.id}>
               <Card
                 className="group cursor-pointer hover:shadow-md transition-shadow"
-                style={courseGlowStyle(course.color || DEFAULT_COURSE_COLOR)}
+                style={courseGlowStyle(course.color || DEFAULT_COURSE_COLOR, intensityFactor)}
               >
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <span
-                      className="h-3 w-3 rounded-full shrink-0"
-                      style={{ backgroundColor: course.color || DEFAULT_COURSE_COLOR }}
-                    />
                     <span className="flex-1 truncate">{course.name}</span>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
