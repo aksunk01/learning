@@ -7,6 +7,8 @@ import { fetchCourseMaterials, processCourseMaterial } from "@/lib/course-materi
 import { fetchCourseAssignments, deleteAssignment, updateAssignmentCompletion } from "@/lib/assignments-api";
 import { UploadCourseMaterialDialog } from "@/components/courses/upload-course-material-dialog";
 import { GradingTab } from "@/components/courses/grading-tab";
+import { fetchCourseGrade } from "@/lib/grading-api";
+import { GradeGauge } from "@/components/courses/grade-gauge";
 import { CreateAssignmentDialog } from "@/components/assignments/create-assignment-dialog";
 import {
   AlertDialog,
@@ -26,7 +28,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreVertical, ExternalLinkIcon } from "lucide-react";
+import { MoreVertical, MoreHorizontal, ExternalLinkIcon } from "lucide-react";
 import {EditAssignmentDialog} from "@/components/assignments/edit-assignment-dialog";
 import { EditCourseDialog } from "@/components/courses/edit-course-dialog";
 import { Button } from "@/components/ui/button";
@@ -39,6 +41,7 @@ export default function CourseDetailsPage() {
   const [course, setCourse] = useState(null);
   const [materials, setMaterials] = useState([]);
   const [assignments, setAssignments] = useState([]);
+  const [grade, setGrade] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [token, setToken] = useState(null);
@@ -87,7 +90,15 @@ export default function CourseDetailsPage() {
         // Load assignments data
         const assignmentsData = await fetchCourseAssignments(courseId, storedToken);
         setAssignments(assignmentsData);
-        
+
+        // Load grade data (non-fatal if it fails)
+        try {
+          const gradeData = await fetchCourseGrade(courseId, storedToken);
+          setGrade(gradeData);
+        } catch (gradeErr) {
+          console.error("Failed to load course grade:", gradeErr);
+        }
+
         // Set token after successful authentication
         setToken(storedToken);
       } catch (err) {
@@ -337,6 +348,106 @@ const sortedAssignments = [...assignments].sort((a, b) => {
 
   const courseColor = course.color || DEFAULT_COURSE_COLOR;
 
+  const renderAssignmentCard = (assignment, isCompleted) => (
+    <div
+      key={assignment.id}
+      className={`border rounded-lg p-4 cursor-pointer hover:bg-muted/50 transition-colors ${isCompleted ? 'opacity-70 bg-muted/50' : ''}`}
+      onClick={(e) => handleAssignmentClick(assignment.id, e)}
+    >
+      <div className="flex justify-between items-start">
+        <div>
+          <h4 className={`font-medium ${isCompleted ? 'line-through' : ''}`}>{assignment.title}</h4>
+          {assignment.assignment_type && (
+            <p className="text-sm text-muted-foreground mt-1">{assignment.assignment_type}</p>
+          )}
+        </div>
+        <div className="flex items-center space-x-2">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleAssignmentCompletion(assignment.id, !isCompleted);
+            }}
+            disabled={togglingCompletionId === assignment.id}
+            className={`text-sm font-medium ${isCompleted ? 'text-gray-500 hover:text-gray-700' : 'text-primary hover:text-primary/80'}`}
+          >
+            {togglingCompletionId === assignment.id
+              ? "Updating..."
+              : isCompleted ? "Mark Incomplete" : "Mark Complete"}
+          </button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAssignmentClick(assignment.id, e);
+                }}
+              >
+                View
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleEditAssignment(assignment, e);
+                }}
+              >
+                Edit
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  confirmDeleteAssignment(assignment);
+                }}
+              >
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+        {assignment.due_at && (
+          <div>
+            <span className="text-muted-foreground">Due:</span> { formatWallClockDate(assignment.due_at) }
+          </div>
+        )}
+        {assignment.points != null && (
+          <div>
+            <span className="text-muted-foreground">Points:</span> {assignment.points}
+          </div>
+        )}
+        {assignment.weight_percent != null && (
+          <div>
+            <span className="text-muted-foreground">Weight:</span> {assignment.weight_percent}%
+          </div>
+        )}
+      </div>
+
+      {isCompleted && assignment.completed_at && (
+        <div className="mt-2 text-xs text-muted-foreground">
+          Completed: {new Date(assignment.completed_at).toLocaleString()}
+        </div>
+      )}
+    </div>
+  );
+
+  const todoAssignments = sortedAssignments.filter((a) => !a.is_completed);
+  const doneAssignments = sortedAssignments.filter((a) => a.is_completed);
+
   return (
     <div className="flex-1 p-6 pb-24 md:pb-6" style={coursePageTintStyle(courseColor, intensityFactor)}>
       <PageBreadcrumb items={breadcrumbItems} />
@@ -357,41 +468,44 @@ const sortedAssignments = [...assignments].sort((a, b) => {
         <h1 className="text-3xl font-bold tracking-tight">Course Details</h1>
       </div>
 
-      <div className="bg-card border rounded-lg p-6 mb-6">
-        <div className="flex items-start justify-between gap-2 mb-4">
-          <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-semibold">
-              {course.name}
-            </h2>
-          </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setEditCourseOpen(true)}>
-                Edit
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+      <div className="relative bg-card border rounded-lg p-6 mb-6 flex items-center justify-between gap-6">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="absolute top-3 right-3">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setEditCourseOpen(true)}>
+              Edit
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <div className="flex-1 min-w-0">
+          <h2 className="text-2xl font-semibold mb-4 pr-8">
+            {course.name}
+          </h2>
+
+          <p className="text-muted-foreground mb-2">
+            Code: {course.code}
+          </p>
+
+          {course.semester && (
+            <p className="text-muted-foreground mb-2">
+              Semester: {course.semester.name}
+            </p>
+          )}
+
+          {course.description && (
+            <p className="text-muted-foreground mt-4">
+              {course.description}
+            </p>
+          )}
         </div>
 
-        <p className="text-muted-foreground mb-2">
-          Code: {course.code}
-        </p>
-
-        {course.semester && (
-          <p className="text-muted-foreground mb-2">
-            Semester: {course.semester.name}
-          </p>
-        )}
-
-        {course.description && (
-          <p className="text-muted-foreground mt-4">
-            {course.description}
-          </p>
+        {grade?.overall_percent != null && (
+          <GradeGauge percent={grade.overall_percent} />
         )}
       </div>
 
@@ -404,13 +518,6 @@ const sortedAssignments = [...assignments].sort((a, b) => {
             onClick={() => setActiveView('assignments')}
           >
             Assignments
-          </button>
-          <button
-            type="button"
-            className={`py-2 px-4 font-medium text-sm ${activeView === 'completed' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-            onClick={() => setActiveView('completed')}
-          >
-            Completed
           </button>
           <button
             type="button"
@@ -441,222 +548,34 @@ const sortedAssignments = [...assignments].sort((a, b) => {
                 onAssignmentCreated={handleAssignmentCreated}
               />
             </div>
-            
-            {sortedAssignments.filter(a => !a.is_completed).length === 0 ? (
-              <p className="text-muted-foreground">No incomplete assignments found for this course.</p>
-            ) : (
-              <div className="space-y-4">
-                {sortedAssignments
-                  .filter(assignment => !assignment.is_completed)
-                  .map((assignment) => (
-                    <div 
-                      key={assignment.id} 
-                      className={`border rounded-lg p-4 cursor-pointer hover:bg-muted/50 transition-colors`}
-                      onClick={(e) => handleAssignmentClick(assignment.id, e)}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h4 className="font-medium">{assignment.title}</h4>
-                          {assignment.assignment_type && (
-                            <p className="text-sm text-muted-foreground mt-1">{assignment.assignment_type}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleAssignmentCompletion(
-                                assignment.id,
-                                true
-                              );
-                            }}
-                            disabled={togglingCompletionId === assignment.id}
-                            className={`text-sm font-medium text-primary hover:text-primary/80`}
-                          >
-                            {togglingCompletionId === assignment.id
-                              ? "Updating..."
-                              : "Mark Complete"}
-                          </button>
 
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleAssignmentClick(assignment.id, e);
-                                }}
-                              >
-                                View 
-                              </DropdownMenuItem>
-
-                              <DropdownMenuItem
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEditAssignment(assignment, e);
-                                }}
-                              >
-                                Edit 
-                              </DropdownMenuItem>
-
-                              <DropdownMenuItem
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  confirmDeleteAssignment(assignment);
-                                }}
-                              >
-                                Delete 
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-                      
-                      <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
-                        {assignment.due_at && (
-                          <div>
-                            <span className="text-muted-foreground">Due:</span> { formatWallClockDate(assignment.due_at) }
-                          </div>
-                        )}
-                        {assignment.points != null  && (
-                          <div>
-                            <span className="text-muted-foreground">Points:</span> {assignment.points}
-                          </div>
-                        )}
-                        {assignment.weight_percent != null && (
-                          <div>
-                            <span className="text-muted-foreground">Weight:</span> {assignment.weight_percent}%
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h4 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">
+                  To Do ({todoAssignments.length})
+                </h4>
+                <div className="max-h-[32rem] overflow-y-auto space-y-4 pr-1">
+                  {todoAssignments.length === 0 ? (
+                    <p className="text-muted-foreground">No incomplete assignments found for this course.</p>
+                  ) : (
+                    todoAssignments.map((assignment) => renderAssignmentCard(assignment, false))
+                  )}
+                </div>
               </div>
-            )}
-          </div>
-        ) : activeView === 'completed' ? (
-          <div>
-            <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
-              <h3 className="text-xl font-semibold">Completed</h3>
+
+              <div>
+                <h4 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">
+                  Done ({doneAssignments.length})
+                </h4>
+                <div className="max-h-[32rem] overflow-y-auto space-y-4 pr-1">
+                  {doneAssignments.length === 0 ? (
+                    <p className="text-muted-foreground">No completed assignments found for this course.</p>
+                  ) : (
+                    doneAssignments.map((assignment) => renderAssignmentCard(assignment, true))
+                  )}
+                </div>
+              </div>
             </div>
-            
-            {sortedAssignments.filter(a => a.is_completed).length === 0 ? (
-              <p className="text-muted-foreground">No completed assignments found for this course.</p>
-            ) : (
-              <div className="space-y-4">
-                {sortedAssignments
-                  .filter(assignment => assignment.is_completed)
-                  .map((assignment) => (
-                    <div 
-                      key={assignment.id} 
-                      className="border rounded-lg p-4 opacity-70 bg-muted/50 cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={(e) => handleAssignmentClick(assignment.id, e)}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h4 className="font-medium line-through">{assignment.title}</h4>
-                          {assignment.assignment_type && (
-                            <p className="text-sm text-muted-foreground mt-1">{assignment.assignment_type}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleAssignmentCompletion(
-                                assignment.id,
-                                false
-                              );
-                            }}
-                            disabled={togglingCompletionId === assignment.id}
-                            className={`text-sm font-medium text-gray-500 hover:text-gray-700`}
-                          >
-                            {togglingCompletionId === assignment.id
-                              ? "Updating..."
-                              : "Mark Incomplete"}
-                          </button>
-
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleAssignmentClick(assignment.id, e);
-                                }}
-                              >
-                                View 
-                              </DropdownMenuItem>
-
-                              <DropdownMenuItem
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEditAssignment(assignment, e);
-                                }}
-                              >
-                                Edit 
-                              </DropdownMenuItem>
-
-                              <DropdownMenuItem
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  confirmDeleteAssignment(assignment);
-                                }}
-                              >
-                                Delete 
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-                      
-                      <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
-                        {assignment.due_at && (
-                          <div>
-                            <span className="text-muted-foreground">Due:</span> { formatWallClockDate(assignment.due_at) }
-                          </div>
-                        )}
-                        {assignment.points != null  && (
-                          <div>
-                            <span className="text-muted-foreground">Points:</span> {assignment.points}
-                          </div>
-                        )}
-                        {assignment.weight_percent != null && (
-                          <div>
-                            <span className="text-muted-foreground">Weight:</span> {assignment.weight_percent}%
-                          </div>
-                        )}
-                      </div>
-                      
-                      {assignment.is_completed && assignment.completed_at && (
-                        <div className="mt-2 text-xs text-muted-foreground">
-                          Completed: {new Date(assignment.completed_at).toLocaleString()}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-              </div>
-            )}
           </div>
         ) : activeView === 'documents' ? (
           <div>
@@ -720,7 +639,7 @@ const sortedAssignments = [...assignments].sort((a, b) => {
             )}
           </div>
         ) : (
-          <GradingTab courseId={courseId} token={token} />
+          <GradingTab courseId={courseId} token={token} onGradeChange={setGrade} />
         )}
 
         {/* Delete Confirmation Dialog */}
