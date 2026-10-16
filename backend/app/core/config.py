@@ -46,6 +46,12 @@ class Settings(BaseSettings):
     # when unset.
     OLLAMA_TASK_MODEL: Optional[str] = None
 
+    # Small/fast model used to classify each question as task-related
+    # (schedule/workload) vs. course-content before routing (see
+    # RAGService._detect_task_query) - only ever needs to output one word,
+    # so a lighter model than OLLAMA_GENERATION_MODEL keeps this cheap.
+    OLLAMA_CLASSIFIER_MODEL: str = "llama3.2:3b"
+
     class Config:
         env_file= ".env"
 

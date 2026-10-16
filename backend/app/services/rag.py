@@ -11,7 +11,7 @@ from app.api.v1.assignments import (
 from app.core.config import settings
 from app.models.conversation import Conversation
 from app.models.course import Course
-from app.services.generation import GenerationService, TASK_SYSTEM_INSTRUCTION
+from app.services.generation import GenerationError, GenerationService, TASK_SYSTEM_INSTRUCTION
 from app.services.retrieval import RetrievalService
 
 _MAX_HISTORY_MESSAGES = 10  # ~5 prior turns
@@ -25,7 +25,19 @@ _MAX_TASK_ITEMS = 12  # keeps the planning-question prompt fast on the local mod
 _TASK_QUERY_KEYWORDS = {
     "due", "deadline", "deadlines", "overdue", "prioritize", "prioritise",
     "priority", "priorities", "upcoming", "homework", "assignments",
-    "assignment", "todo", "schedule",
+    "assignment", "todo", "schedule", "task", "tasks", "complete",
+    "completed", "finish", "finished", "turn", "submit", "submitted",
+    "tackle", "pending", "remaining", "behind", "workload",
+    "today", "tonight", "tomorrow", "weekend",
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+}
+
+# Multi-word phrasings that signal task-intent only as a whole phrase - see
+# _is_task_query_heuristic for why their individual words aren't in the
+# keyword set above.
+_TASK_QUERY_PHRASES = {
+    "work on next", "work on first", "work on today", "work on tomorrow",
+    "should i do", "need to do", "get done", "catch up on", "on my plate",
 }
 
 # Course-name words too generic to treat as a distinctive match on their own
@@ -116,13 +128,36 @@ class RAGService:
 
         return None
 
-    def _is_task_query(self, question: str) -> bool:
+    def _is_task_query_heuristic(self, question: str) -> bool:
+        """Keyword/phrase fallback for _detect_task_query, used only when the
+        model classifier call fails (Ollama unreachable, model missing,
+        etc.) - does this look like a question about the user's
+        schedule/workload rather than course content?"""
+        words = set(re.findall(r"[a-z]+", question.lower()))
+
+        if words & _TASK_QUERY_KEYWORDS:
+            return True
+
+        # A few common phrasings that only signal task-intent as a multi-word
+        # phrase - their individual words ("work", "do", "done", "left") are
+        # too generic on their own and would misroute ordinary content
+        # questions (e.g. "how does TCP work", "how is homework done").
+        question_lower = question.lower()
+        return any(phrase in question_lower for phrase in _TASK_QUERY_PHRASES)
+
+    def _detect_task_query(self, question: str) -> bool:
         """Does this look like a question about the user's schedule/workload
         (what's due, what to prioritize) rather than course content? Those
         need a structured list of assignments and due dates pulled from the
-        Assignment table, not a vector search over syllabus/lecture text."""
-        words = set(re.findall(r"[a-z]+", question.lower()))
-        return bool(words & _TASK_QUERY_KEYWORDS)
+        Assignment table, not a vector search over syllabus/lecture text.
+
+        Tries the model classifier first (handles arbitrary phrasing far
+        better than any fixed keyword list), falling back to the keyword/
+        phrase heuristic if that call fails for any reason."""
+        try:
+            return self.generation_service.classify_question(question)
+        except GenerationError:
+            return self._is_task_query_heuristic(question)
 
     def _build_task_context(self, db: Session, user_id: UUID, course_id: UUID | None = None) -> str | None:
         """Build a context string listing the user's overdue and upcoming
@@ -178,7 +213,13 @@ class RAGService:
 
             lines.append(f"[{source_id}] {assignment.title} - " + ", ".join(details))
 
-        return "\n".join(lines)
+        # Stated explicitly because due dates alone don't tell the model what
+        # "today" is - without this it has no way to reason about questions
+        # like "what's due by Monday" or "this week", only the OVERDUE tag
+        # already computed above (a binary past/future split).
+        header = f"Today is {now.strftime('%A, %B %d, %Y')}."
+
+        return header + "\n\n" + "\n".join(lines)
 
     def _build_context(self, db: Session, user_id: UUID, question: str, limit: int, course_id: UUID | None = None, conversation: Conversation | None = None):
         """Run retrieval and build the (context, sources, detected_course_id) tuple
@@ -341,7 +382,7 @@ Source: {material.file_name}, {location}
     def ask(self, db: Session, user_id: UUID, question: str, limit: int = 5, course_id: UUID | None = None, conversation: Conversation | None = None) -> dict:
         history = self._build_history_messages(conversation)
 
-        if self._is_task_query(question):
+        if self._detect_task_query(question):
             task_context = self._build_task_context(db, user_id, course_id)
 
             if task_context is None:
@@ -390,7 +431,7 @@ Source: {material.file_name}, {location}
         """Yield {"type": "sources"|"token"|"done", ...} events as the answer is generated."""
         history = self._build_history_messages(conversation)
 
-        if self._is_task_query(question):
+        if self._detect_task_query(question):
             task_context = self._build_task_context(db, user_id, course_id)
 
             if task_context is None:

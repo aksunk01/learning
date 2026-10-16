@@ -57,6 +57,16 @@ TASK_SYSTEM_INSTRUCTION = (
 )
 
 
+CLASSIFIER_SYSTEM_INSTRUCTION = (
+    "You are a classifier for an academic assistant. Decide whether the "
+    "user's question is about their personal schedule or workload - due "
+    "dates, deadlines, what to do, prioritization, overdue items - rather "
+    "than about course content or material - concepts, explanations, "
+    "syllabus policies, grading breakdowns, document content. "
+    "Respond with exactly one word and nothing else: TASK or CONTENT."
+)
+
+
 class GenerationError(Exception):
     """Raised when the Ollama generation backend can't be reached or fails."""
 
@@ -111,6 +121,41 @@ class GenerationService:
             f"Ollama model '{model}' is not available at {self.base_url}. "
             f"Pull it first with: ollama pull {model}"
         )
+
+    def classify_question(self, question: str) -> bool:
+        """Returns True if the question is about the user's schedule/workload
+        rather than course content. Single attempt, no retries - this is a
+        cheap pre-routing step and should fail fast so the caller can fall
+        back to the keyword heuristic rather than stall the actual answer."""
+        payload = {
+            "model": settings.OLLAMA_CLASSIFIER_MODEL,
+            "messages": [
+                {"role": "system", "content": CLASSIFIER_SYSTEM_INSTRUCTION},
+                {"role": "user", "content": question},
+            ],
+            "think": False,
+            "stream": False,
+            "options": {"temperature": 0, "num_predict": 5},
+        }
+
+        try:
+            response = self._client.post(f"{self.base_url}/api/chat", json=payload)
+        except httpx.ConnectError:
+            raise self._connection_error()
+        except httpx.TimeoutException:
+            raise self._timeout_error()
+
+        if response.status_code == 404:
+            raise self._missing_model_error(settings.OLLAMA_CLASSIFIER_MODEL)
+
+        if not response.is_success:
+            raise GenerationError(
+                f"Ollama classification request failed "
+                f"({response.status_code}): {response.text}"
+            )
+
+        answer = response.json().get("message", {}).get("content", "")
+        return "task" in answer.strip().lower()
 
     def generate_answer(self, question: str, context: str, history: list[dict] | None = None, system_instruction: str = SYSTEM_INSTRUCTION, model: str | None = None) -> str:
         model = model or self.model
