@@ -207,6 +207,9 @@ export default function CalendarPage() {
             const isToday = key === todayKey;
             const dayAssignments = assignmentsByDay[key] || [];
             const hasAssignments = dayAssignments.length > 0;
+            const hasExam = dayAssignments.some((assignment) =>
+              /exam|test/i.test(assignment.assignment_type || "")
+            );
             const rowIndex = Math.floor(index / 7);
             const totalRows = gridDays.length / 7;
             const anchorAbove = rowIndex >= Math.ceil(totalRows / 2);
@@ -214,9 +217,15 @@ export default function CalendarPage() {
             return (
               <div
                 key={key}
-                className={`relative border rounded-md p-2 min-h-[80px] sm:min-h-[100px] flex flex-col transition-colors ${
+                className={`relative rounded-md p-2 min-h-[80px] sm:min-h-[100px] flex flex-col transition-colors ${
                   isCurrentMonth ? "" : "opacity-40"
-                } ${isToday ? "border-primary" : "border-border"} ${
+                } ${
+                  hasExam
+                    ? "border-2 border-red-500 dark:border-red-400"
+                    : isToday
+                    ? "border border-primary"
+                    : "border border-border"
+                } ${
                   hasAssignments ? "cursor-pointer hover:bg-muted/50" : ""
                 } ${activeDayKey === key ? "z-20" : ""}`}
                 onMouseEnter={() => hasAssignments && setActiveDayKey(key)}

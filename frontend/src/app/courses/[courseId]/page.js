@@ -361,9 +361,18 @@ const sortedAssignments = [...assignments].sort((a, b) => {
             />
             <h2 className="text-2xl font-semibold">{course.name}</h2>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setEditCourseOpen(true)}>
-            Edit Course
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setEditCourseOpen(true)}>
+                Edit
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         <p className="text-muted-foreground mb-2">
