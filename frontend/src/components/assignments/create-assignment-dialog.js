@@ -13,6 +13,8 @@ import { PlusIcon } from "lucide-react";
 import { createAssignment } from "@/lib/assignments-api";
 import { fetchGradingCategories } from "@/lib/grading-api";
 import { useRouter } from "next/navigation";
+import { CourseSelect } from "@/components/courses/course-select";
+import { useControlledOpen } from "@/hooks/use-controlled-open";
 
 // Define the validation schema
 const assignmentSchema = z.object({
@@ -28,12 +30,23 @@ const assignmentSchema = z.object({
   categoryId: z.string().optional().nullable(),
 });
 
-export function CreateAssignmentDialog({ courseId, token, onAssignmentCreated }) {
-  const [isOpen, setIsOpen] = useState(false);
+export function CreateAssignmentDialog({
+  courseId: fixedCourseId,
+  token,
+  onAssignmentCreated,
+  open: openProp,
+  onOpenChange: onOpenChangeProp,
+  trigger,
+}) {
+  const [isOpen, setIsOpen] = useControlledOpen(openProp, onOpenChangeProp);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [categories, setCategories] = useState([]);
+  const [selectedCourseId, setSelectedCourseId] = useState(null);
   const router = useRouter();
+
+  const needsCourseSelection = !fixedCourseId;
+  const courseId = fixedCourseId || selectedCourseId;
 
   const form = useForm({
     resolver: zodResolver(assignmentSchema),
@@ -62,6 +75,11 @@ export function CreateAssignmentDialog({ courseId, token, onAssignmentCreated })
 
 
   const onSubmit = async (data) => {
+    if (!courseId) {
+      setError("Please select a course");
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
@@ -104,18 +122,23 @@ export function CreateAssignmentDialog({ courseId, token, onAssignmentCreated })
       // Reset form when closing
       form.reset();
       setError(null);
+      setSelectedCourseId(null);
     }
     setIsOpen(open);
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button>
-          <PlusIcon className="mr-2 h-4 w-4" />
-          Add Assignment
-        </Button>
-      </DialogTrigger>
+      {trigger !== null && (
+        <DialogTrigger asChild>
+          {trigger || (
+            <Button>
+              <PlusIcon className="mr-2 h-4 w-4" />
+              Add Assignment
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Create New Assignment</DialogTitle>
@@ -125,7 +148,17 @@ export function CreateAssignmentDialog({ courseId, token, onAssignmentCreated })
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <FieldGroup>
-            
+            {needsCourseSelection && (
+              <Field name="course">
+                <FieldLabel>Course</FieldLabel>
+                <CourseSelect
+                  token={token}
+                  value={selectedCourseId}
+                  onChange={setSelectedCourseId}
+                />
+              </Field>
+            )}
+
             <Field name="title">
               <FieldLabel>Title</FieldLabel>
               <Input 
@@ -202,7 +235,7 @@ export function CreateAssignmentDialog({ courseId, token, onAssignmentCreated })
           <DialogFooter>
             <Button 
               type="submit" 
-              disabled={isSubmitting}
+              disabled={isSubmitting || (needsCourseSelection && !selectedCourseId)}
             >
               {isSubmitting ? "Creating..." : "Create Assignment"}
             </Button>

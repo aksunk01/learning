@@ -89,24 +89,3 @@ export async function updateSemester(semesterId, semesterData, token) {
   return response.json();
 }
 
-export async function deleteSemester(semesterId, token) {
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-
-  if (!baseUrl) {
-    throw new Error('NEXT_PUBLIC_API_BASE_URL environment variable is not set');
-  }
-
-  const response = await fetch(`${baseUrl}/api/v1/semesters/${semesterId}`, {
-    method: 'DELETE',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(await parseErrorResponse(response, `Failed to delete semester: ${response.status} ${response.statusText}`));
-  }
-
-  return response.json();
-}

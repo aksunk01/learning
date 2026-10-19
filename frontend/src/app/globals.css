@@ -169,3 +169,13 @@
 .docx-viewer .docx-wrapper > .docx {
   overflow-x: auto !important;
 }
+
+/* Keep an element scrollable without showing the scrollbar chrome. */
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

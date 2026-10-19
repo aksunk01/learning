@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchAssignmentsInRange } from "@/lib/assignments-api";
 import { fetchCourses } from "@/lib/courses-api";
@@ -8,6 +8,7 @@ import { parseWallClockDate } from "@/lib/date-helpers";
 import { DEFAULT_COURSE_COLOR, hexToRgba, courseAccentColor } from "@/lib/colors";
 import { useColorIntensity } from "@/components/providers/color-intensity-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { AddMenu } from "@/components/navigation/add-menu";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -60,13 +61,15 @@ export default function CalendarPage() {
     });
   }, [monthCursor]);
 
-  useEffect(() => {
-    if (!token) return;
+  const loadAssignments = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!token) return;
 
-    const loadAssignments = async () => {
-      setIsLoading(true);
+      if (!silent) {
+        setIsLoading(true);
+        setActiveDayKey(null);
+      }
       setError("");
-      setActiveDayKey(null);
 
       try {
         const start = formatDateKey(gridDays[0]);
@@ -95,11 +98,15 @@ export default function CalendarPage() {
 
         setError("Failed to load calendar assignments");
       } finally {
-        setIsLoading(false);
+        if (!silent) setIsLoading(false);
       }
-    };
+    },
+    [token, gridDays, router]
+  );
 
+  useEffect(() => {
     loadAssignments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, gridDays, router]);
 
   const assignmentsByDay = useMemo(() => {
@@ -143,6 +150,12 @@ export default function CalendarPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <AddMenu
+            token={token}
+            onCourseCreated={() => loadAssignments({ silent: true })}
+            onAssignmentCreated={() => loadAssignments({ silent: true })}
+            onMaterialUploaded={() => loadAssignments({ silent: true })}
+          />
           <ThemeToggle />
         </div>
       </div>

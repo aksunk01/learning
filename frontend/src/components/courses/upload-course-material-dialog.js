@@ -25,6 +25,8 @@ import { Button } from "@/components/ui/button";
 import { UploadIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { uploadCourseMaterial } from "@/lib/course-materials-api";
+import { CourseSelect } from "@/components/courses/course-select";
+import { useControlledOpen } from "@/hooks/use-controlled-open";
 
 // Define the validation schema
 const materialSchema = z.object({
@@ -40,14 +42,21 @@ const materialSchema = z.object({
 });
 
 export function UploadCourseMaterialDialog({
-  courseId,
+  courseId: fixedCourseId,
   token,
   onMaterialUploaded,
+  open: openProp,
+  onOpenChange: onOpenChangeProp,
+  trigger,
 }) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useControlledOpen(openProp, onOpenChangeProp);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [selectedCourseId, setSelectedCourseId] = useState(null);
   const router = useRouter();
+
+  const needsCourseSelection = !fixedCourseId;
+  const courseId = fixedCourseId || selectedCourseId;
 
   const form = useForm({
     resolver: zodResolver(materialSchema),
@@ -60,6 +69,11 @@ export function UploadCourseMaterialDialog({
   });
 
   const onSubmit = async (data) => {
+    if (!courseId) {
+      setError("Please select a course");
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
@@ -105,6 +119,7 @@ export function UploadCourseMaterialDialog({
       // Reset form when closing
       form.reset();
       setError(null);
+      setSelectedCourseId(null);
     }
 
     setIsOpen(open);
@@ -112,12 +127,16 @@ export function UploadCourseMaterialDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button>
-          <UploadIcon className="mr-2 h-4 w-4" />
-          Upload Material
-        </Button>
-      </DialogTrigger>
+      {trigger !== null && (
+        <DialogTrigger asChild>
+          {trigger || (
+            <Button>
+              <UploadIcon className="mr-2 h-4 w-4" />
+              Upload Material
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
 
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
@@ -129,6 +148,17 @@ export function UploadCourseMaterialDialog({
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <FieldGroup>
+            {needsCourseSelection && (
+              <Field name="course">
+                <FieldLabel>Course</FieldLabel>
+                <CourseSelect
+                  token={token}
+                  value={selectedCourseId}
+                  onChange={setSelectedCourseId}
+                />
+              </Field>
+            )}
+
             <Field name="name">
               <FieldLabel>Name</FieldLabel>
               <Input
@@ -192,7 +222,7 @@ export function UploadCourseMaterialDialog({
           )}
 
           <DialogFooter>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting || (needsCourseSelection && !selectedCourseId)}>
               {isSubmitting ? "Uploading..." : "Upload Material"}
             </Button>
           </DialogFooter>

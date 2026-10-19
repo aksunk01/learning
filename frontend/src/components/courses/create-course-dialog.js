@@ -29,6 +29,7 @@ import {
   CourseColorPicker,
   COURSE_COLOR_PALETTE,
 } from "@/components/courses/course-color-picker";
+import { useControlledOpen } from "@/hooks/use-controlled-open";
 
 // Define the validation schema
 const courseSchema = z.object({
@@ -39,8 +40,14 @@ const courseSchema = z.object({
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Pick a color"),
 });
 
-export function CreateCourseDialog({ token, onCourseCreated }) {
-  const [isOpen, setIsOpen] = useState(false);
+export function CreateCourseDialog({
+  token,
+  onCourseCreated,
+  open: openProp,
+  onOpenChange: onOpenChangeProp,
+  trigger,
+}) {
+  const [isOpen, setIsOpen] = useControlledOpen(openProp, onOpenChangeProp);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [takenColors, setTakenColors] = useState([]);
@@ -131,12 +138,16 @@ export function CreateCourseDialog({ token, onCourseCreated }) {
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button>
-          <PlusIcon className="mr-2 h-4 w-4" />
-          Add Course
-        </Button>
-      </DialogTrigger>
+      {trigger !== null && (
+        <DialogTrigger asChild>
+          {trigger || (
+            <Button>
+              <PlusIcon className="mr-2 h-4 w-4" />
+              Add Course
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Create New Course</DialogTitle>

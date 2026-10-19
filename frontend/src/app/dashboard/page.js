@@ -19,6 +19,7 @@ import { StandardDashboard } from "@/components/dashboard/standard-dashboard";
 import { CompactDashboard } from "@/components/dashboard/compact-dashboard";
 import { BoardDashboard } from "@/components/dashboard/board-dashboard";
 import { KanbanDashboard } from "@/components/dashboard/kanban-dashboard";
+import { AddMenu } from "@/components/navigation/add-menu";
 
 const DASHBOARD_LAYOUTS = {
   standard: StandardDashboard,
@@ -382,6 +383,12 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <AddMenu
+            token={token}
+            onCourseCreated={() => loadDashboardData({ silent: true })}
+            onAssignmentCreated={() => loadDashboardData({ silent: true })}
+            onMaterialUploaded={() => loadDashboardData({ silent: true })}
+          />
           <PlannerToggleButton onClick={() => setPlannerOpen(true)} />
         </div>
       </div>

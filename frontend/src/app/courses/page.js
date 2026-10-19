@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { fetchCourses, deleteCourse } from "@/lib/courses-api";
-import { CreateCourseDialog } from "@/components/courses/create-course-dialog";
+import { AddMenu } from "@/components/navigation/add-menu";
 import { EditCourseDialog } from "@/components/courses/edit-course-dialog";
 import { SemesterHeading } from "@/components/semesters/semester-heading";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -258,7 +258,7 @@ export default function CoursesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <CreateCourseDialog
+          <AddMenu
             token={token}
             onCourseCreated={handleCourseCreated}
           />
