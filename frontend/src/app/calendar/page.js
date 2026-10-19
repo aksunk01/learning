@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { fetchAssignmentsInRange } from "@/lib/assignments-api";
 import { fetchCourses } from "@/lib/courses-api";
 import { parseWallClockDate } from "@/lib/date-helpers";
@@ -13,17 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronLeftIcon, ChevronRightIcon, LayoutDashboardIcon } from "lucide-react";
-
-function DashboardToggleButton() {
-  return (
-    <Link href="/dashboard">
-      <Button variant="ghost" size="icon" aria-label="Dashboard">
-        <LayoutDashboardIcon className="h-5 w-5" />
-      </Button>
-    </Link>
-  );
-}
+import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -154,7 +143,6 @@ export default function CalendarPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <DashboardToggleButton />
           <ThemeToggle />
         </div>
       </div>
