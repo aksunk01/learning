@@ -27,6 +27,8 @@ import {
   CourseColorPicker,
   COURSE_COLOR_PALETTE,
 } from "@/components/courses/course-color-picker";
+import { MeetingTimeField } from "@/components/courses/meeting-time-field";
+import { scheduleToMeetingFormValue, meetingFormValueToSchedule } from "@/lib/course-schedule";
 
 const courseSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
@@ -34,6 +36,7 @@ const courseSchema = z.object({
   description: z.string().optional().nullable(),
   semester_id: z.string().optional().nullable(),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Pick a color"),
+  meetingTime: z.any().optional().nullable(),
 });
 
 export function EditCourseDialog({ course, token, open, onOpenChange, onUpdated }) {
@@ -49,6 +52,7 @@ export function EditCourseDialog({ course, token, open, onOpenChange, onUpdated 
       description: "",
       semester_id: null,
       color: "#3b82f6",
+      meetingTime: null,
     },
   });
 
@@ -60,6 +64,7 @@ export function EditCourseDialog({ course, token, open, onOpenChange, onUpdated 
         description: course.description || "",
         semester_id: course.semester_id || null,
         color: course.color || "#3b82f6",
+        meetingTime: scheduleToMeetingFormValue(course.schedule),
       });
     }
   }, [course, form]);
@@ -115,6 +120,7 @@ export function EditCourseDialog({ course, token, open, onOpenChange, onUpdated 
       description: data.description?.trim() || null,
       semester_id: data.semester_id || null,
       color: data.color,
+      schedule: meetingFormValueToSchedule(data.meetingTime),
     };
 
     try {
@@ -191,6 +197,16 @@ export function EditCourseDialog({ course, token, open, onOpenChange, onUpdated 
                 </p>
               )}
               <FieldError>{form.formState.errors.color?.message}</FieldError>
+            </Field>
+
+            <Field name="meetingTime">
+              <FieldLabel>Meeting Time</FieldLabel>
+              <MeetingTimeField
+                value={form.watch("meetingTime")}
+                onChange={(value) =>
+                  form.setValue("meetingTime", value, { shouldValidate: true })
+                }
+              />
             </Field>
           </FieldGroup>
 

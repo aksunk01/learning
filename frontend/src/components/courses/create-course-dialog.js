@@ -30,6 +30,8 @@ import {
   COURSE_COLOR_PALETTE,
 } from "@/components/courses/course-color-picker";
 import { useControlledOpen } from "@/hooks/use-controlled-open";
+import { MeetingTimeField } from "@/components/courses/meeting-time-field";
+import { meetingFormValueToSchedule } from "@/lib/course-schedule";
 
 // Define the validation schema
 const courseSchema = z.object({
@@ -38,6 +40,7 @@ const courseSchema = z.object({
   description: z.string().optional().nullable(),
   semester_id: z.string().optional().nullable(),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Pick a color"),
+  meetingTime: z.any().optional().nullable(),
 });
 
 export function CreateCourseDialog({
@@ -60,6 +63,7 @@ export function CreateCourseDialog({
       description: "",
       semester_id: null,
       color: COURSE_COLOR_PALETTE[0],
+      meetingTime: null,
     },
   });
 
@@ -106,6 +110,7 @@ export function CreateCourseDialog({
       description: data.description?.trim() || null,
       semester_id: data.semester_id || null,
       color: data.color,
+      schedule: meetingFormValueToSchedule(data.meetingTime),
     };
 
     try {
@@ -212,8 +217,18 @@ export function CreateCourseDialog({
               )}
               <FieldError>{form.formState.errors.color?.message}</FieldError>
             </Field>
+
+            <Field name="meetingTime">
+              <FieldLabel>Meeting Time</FieldLabel>
+              <MeetingTimeField
+                value={form.watch("meetingTime")}
+                onChange={(value) =>
+                  form.setValue("meetingTime", value, { shouldValidate: true })
+                }
+              />
+            </Field>
           </FieldGroup>
-          
+
           {error && (
             <div className="text-sm text-destructive">
               Error: {error}

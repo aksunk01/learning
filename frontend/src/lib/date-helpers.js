@@ -1,3 +1,13 @@
+// Local-timezone "YYYY-MM-DD" key for a Date, for grouping/matching by day
+// (as opposed to toISOString(), which shifts to UTC and can land on the
+// wrong day near midnight).
+export function formatDateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function parseWallClockDate(dateString) {
   if (!dateString) return null;
 

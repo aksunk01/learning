@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.db.database import engine
 from sqlalchemy import text
 from app.api import health, auth
-from app.api.v1 import users, courses, course_materials, assistant, assignments, dashboard, semesters, planner, grading, conversations
+from app.api.v1 import courses, course_materials, assistant, assignments, dashboard, semesters, planner, grading, conversations, calendar_events
 
 
 app = FastAPI(
@@ -32,7 +32,6 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-app.include_router(users.router, prefix="/api/v1")
 app.include_router(health.router)
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(courses.router, prefix="/api/v1")
@@ -46,6 +45,7 @@ app.include_router(dashboard.router, prefix="/api/v1")
 app.include_router(planner.router, prefix="/api/v1")
 app.include_router(grading.router, prefix="/api/v1")
 app.include_router(grading.grade_router, prefix="/api/v1")
+app.include_router(calendar_events.router, prefix="/api/v1")
 
 
 @app.get("/health/database")

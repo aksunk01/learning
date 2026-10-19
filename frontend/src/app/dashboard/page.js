@@ -5,14 +5,16 @@ import { Button } from "@/components/ui/button";
 import { SemesterHeading } from "@/components/semesters/semester-heading";
 import { SemesterProgress } from "@/components/semester-progress";
 import { ListChecksIcon } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchDashboard } from "@/lib/dashboard-api";
 import { fetchSemesters } from "@/lib/semesters-api";
 import { fetchCourses } from "@/lib/courses-api";
+import { fetchAssignmentsInRange } from "@/lib/assignments-api";
 import { getCurrentUser, updateProfile } from "@/lib/auth-api";
 import { useRouter } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
-import { parseWallClockDate } from "@/lib/date-helpers";
+import { formatDateKey, parseWallClockDate } from "@/lib/date-helpers";
+import { buildCourseMeetingsByDay } from "@/lib/course-schedule";
 import { PlannerPanel } from "@/components/planner/planner-panel";
 import { DEFAULT_COURSE_COLOR } from "@/lib/colors";
 import { StandardDashboard } from "@/components/dashboard/standard-dashboard";
@@ -20,6 +22,8 @@ import { CompactDashboard } from "@/components/dashboard/compact-dashboard";
 import { BoardDashboard } from "@/components/dashboard/board-dashboard";
 import { KanbanDashboard } from "@/components/dashboard/kanban-dashboard";
 import { AddMenu } from "@/components/navigation/add-menu";
+import { DayScheduleSidebar } from "@/components/dashboard/day-schedule-sidebar";
+import { useColorIntensity } from "@/components/providers/color-intensity-provider";
 
 const DASHBOARD_LAYOUTS = {
   standard: StandardDashboard,
@@ -37,6 +41,7 @@ function PlannerToggleButton({ onClick }) {
 }
 
 export default function DashboardPage() {
+  const { intensityFactor } = useColorIntensity();
   const [dashboardData, setDashboardData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -46,10 +51,46 @@ export default function DashboardPage() {
   const [token, setToken] = useState(null);
   const [plannerOpen, setPlannerOpen] = useState(false);
   const [coursesById, setCoursesById] = useState({});
+  const [courses, setCourses] = useState([]);
+  const [todayAssignments, setTodayAssignments] = useState([]);
   const [layout, setLayout] = useState("standard");
   const [favoriteSemesterId, setFavoriteSemesterId] = useState(null);
   const [userLoaded, setUserLoaded] = useState(false);
+  const [mainColumnHeight, setMainColumnHeight] = useState(null);
+  const mainColumnObserverRef = useRef(null);
   const router = useRouter();
+
+  // Measure the main dashboard column so the day-schedule sidebar can match
+  // its height exactly (a CSS-only percentage-height chain through nested
+  // flex/scroll containers isn't reliable here). A callback ref is used
+  // instead of useRef+useEffect because this element only exists behind the
+  // isLoading/error/!dashboardData early returns below - an effect with an
+  // empty dep array would run on the very first (loading) render, find
+  // nothing attached yet, and never fire again.
+  const mainColumnRef = useCallback((node) => {
+    mainColumnObserverRef.current?.disconnect();
+    mainColumnObserverRef.current = null;
+
+    if (!node || typeof ResizeObserver === "undefined") return;
+
+    // Measure to the bottom edge of the last child rather than the
+    // container's own content-box height: as a flex item, this div
+    // establishes a block-formatting context, so a trailing margin on its
+    // last child (e.g. the dashboard layout's final section) gets counted
+    // in its content height instead of collapsing through as it normally
+    // would - inflating the measurement past where the content visually ends.
+    const measure = () => {
+      const lastChild = node.lastElementChild;
+      const height = lastChild
+        ? lastChild.getBoundingClientRect().bottom - node.getBoundingClientRect().top
+        : node.getBoundingClientRect().height;
+      setMainColumnHeight(height);
+    };
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    mainColumnObserverRef.current = observer;
+  }, []);
 
   useEffect(() => {
     const storedToken = localStorage.getItem("access_token");
@@ -116,6 +157,7 @@ export default function DashboardPage() {
     fetchCourses(token)
       .then((data) => {
         if (isCancelled) return;
+        setCourses(data);
         setCoursesById(
           Object.fromEntries(
             data.map((course) => [
@@ -127,6 +169,25 @@ export default function DashboardPage() {
       })
       .catch(() => {
         // Glow just stays off if this fails
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+
+    let isCancelled = false;
+    const todayKey = formatDateKey(new Date());
+
+    fetchAssignmentsInRange(todayKey, todayKey, token, { includeCompleted: true })
+      .then((data) => {
+        if (!isCancelled) setTodayAssignments(data);
+      })
+      .catch(() => {
+        // Day schedule sidebar just stays empty if this fails
       });
 
     return () => {
@@ -178,9 +239,31 @@ export default function DashboardPage() {
 
   const getCourseColor = (courseId) => coursesById[courseId]?.color || DEFAULT_COURSE_COLOR;
 
+  const todayAssignmentsByDay = useMemo(() => {
+    const todayKey = formatDateKey(new Date());
+    const map = {};
+
+    for (const assignment of todayAssignments) {
+      if (!assignment.due_at) continue;
+      (map[formatDateKey(parseWallClockDate(assignment.due_at))] ||= []).push(assignment);
+    }
+
+    if (map[todayKey]) {
+      map[todayKey].sort((a, b) => parseWallClockDate(a.due_at) - parseWallClockDate(b.due_at));
+    }
+
+    return map;
+  }, [todayAssignments]);
+
+  const courseMeetingsByDay = useMemo(() => buildCourseMeetingsByDay(courses), [courses]);
+
   // Handle navigation to assignment detail page
   const handleAssignmentClick = (assignmentId) => {
     router.push(`/assignments/${assignmentId}?from=dashboard`);
+  };
+
+  const handleCourseClick = (courseId) => {
+    router.push(`/courses/${courseId}`);
   };
 
   // Handle navigation to exam detail page
@@ -395,25 +478,43 @@ export default function DashboardPage() {
 
       <SemesterProgress semester={activeSemester} />
 
-      <DashboardLayout
-        counts={counts}
-        upcoming={upcoming}
-        overdue={overdue}
-        upcoming_exams={upcoming_exams}
-        upcoming_projects={upcoming_projects}
-        completed={completed}
-        course_summaries={course_summaries}
-        showOverdue={showOverdue}
-        setShowOverdue={setShowOverdue}
-        getCourseName={getCourseName}
-        getCourseColor={getCourseColor}
-        onAssignmentClick={handleAssignmentClick}
-        onExamClick={handleExamClick}
-        onProjectClick={handleProjectClick}
-        onCourseClick={(courseId) => router.push(`/courses/${courseId}`)}
-        token={token}
-        onDataChanged={() => loadDashboardData({ silent: true })}
-      />
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+        <div ref={mainColumnRef} className="flex-1 min-w-0">
+          <DashboardLayout
+            counts={counts}
+            upcoming={upcoming}
+            overdue={overdue}
+            upcoming_exams={upcoming_exams}
+            upcoming_projects={upcoming_projects}
+            completed={completed}
+            course_summaries={course_summaries}
+            showOverdue={showOverdue}
+            setShowOverdue={setShowOverdue}
+            getCourseName={getCourseName}
+            getCourseColor={getCourseColor}
+            onAssignmentClick={handleAssignmentClick}
+            onExamClick={handleExamClick}
+            onProjectClick={handleProjectClick}
+            onCourseClick={handleCourseClick}
+            token={token}
+            onDataChanged={() => loadDashboardData({ silent: true })}
+          />
+        </div>
+
+        <div
+          className="w-full lg:w-[320px] shrink-0"
+          style={mainColumnHeight ? { "--sidebar-height": `${mainColumnHeight}px` } : undefined}
+        >
+          <DayScheduleSidebar
+            assignmentsByDay={todayAssignmentsByDay}
+            courseMeetingsByDay={courseMeetingsByDay}
+            coursesById={coursesById}
+            intensityFactor={intensityFactor}
+            onAssignmentClick={handleAssignmentClick}
+            onCourseClick={handleCourseClick}
+          />
+        </div>
+      </div>
 
       <PlannerPanel open={plannerOpen} onOpenChange={setPlannerOpen} token={token} />
     </div>

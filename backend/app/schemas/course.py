@@ -16,6 +16,7 @@ def validate_hex_color(value: str) -> str:
     return value
 
 class CourseMeeting(BaseModel):
+    is_online: bool = False
     days: list[Literal[
         "monday",
         "tuesday",
@@ -24,18 +25,21 @@ class CourseMeeting(BaseModel):
         "friday",
         "saturday",
         "sunday",
-    ]]
-    start_time: str
-    end_time: str
+    ]] = []
+    start_time: str | None = None
+    end_time: str | None = None
     location: str | None = None
 
     @field_validator("start_time", "end_time")
     @classmethod
-    def validate_time_format(cls, value: str) -> str:
+    def validate_time_format(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+
         # Check if the format is exactly HH:MM
         if not isinstance(value, str) or len(value) != 5 or value[2] != ':':
             raise ValueError("Time must be in HH:MM format")
-        
+
         try:
             # Use datetime.strptime to validate and parse the time
             parsed_time = datetime.strptime(value, "%H:%M")
@@ -50,14 +54,26 @@ class CourseMeeting(BaseModel):
             raise e
 
     @model_validator(mode="after")
-    def validate_meeting_times(self) -> "CourseMeeting":
-        # Parse start and end times to compare them
+    def validate_meeting(self) -> "CourseMeeting":
+        # Online classes have no fixed meeting time - any day/time given
+        # alongside is_online=True is a contradiction, not just ignorable.
+        if self.is_online:
+            if self.days or self.start_time is not None or self.end_time is not None:
+                raise ValueError("Online classes cannot have a meeting time")
+            return self
+
+        if not self.days:
+            raise ValueError("Select at least one meeting day")
+
+        if self.start_time is None or self.end_time is None:
+            raise ValueError("Meeting start and end time are required")
+
         start_time = datetime.strptime(self.start_time, "%H:%M")
         end_time = datetime.strptime(self.end_time, "%H:%M")
-        
+
         if end_time <= start_time:
             raise ValueError("end_time must be later than start_time")
-        
+
         return self
 
 class CourseSchedule(BaseModel):

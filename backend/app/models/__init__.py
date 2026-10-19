@@ -11,3 +11,4 @@ from app.models.task_time_log import TaskTimeLog
 from app.models.planner_preference import PlannerPreference
 from app.models.conversation import Conversation
 from app.models.chat_message import ChatMessage
+from app.models.calendar_event import CalendarEvent
