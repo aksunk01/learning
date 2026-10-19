@@ -10,6 +10,7 @@ GENERATION_MODEL = settings.OLLAMA_GENERATION_MODEL
 
 _MAX_ATTEMPTS = 3
 _REQUEST_TIMEOUT = 120.0
+_MAX_HISTORY_MESSAGES = 10  # ~5 prior user/assistant turns; bounds prompt size
 
 SYSTEM_INSTRUCTION = (
     "You are an academic assistant. "
@@ -30,6 +31,41 @@ SYSTEM_INSTRUCTION = (
     "clearly say that the course material does not specify the answer."
 )
 
+TASK_SYSTEM_INSTRUCTION = (
+    "You are an academic planning assistant. "
+    "You are given the user's assignments (title, course, type, due date, and "
+    "weight/points where known), each in a list labeled with an identifier "
+    "such as [1], [2], or [3]. Those identifiers are only for you to tell "
+    "list entries apart internally - the user never sees that list, so never "
+    "write a bracketed identifier like [1] in your answer. "
+    "Answer the user's question using only that list. "
+    "Do not invent assignments, due dates, or courses that are not in it. "
+    "If an assignment's weight or points are not given in the list, do not "
+    "state a number for it - say it's unspecified instead of guessing one. "
+    "When the user asks what to prioritize, reason about both urgency (how "
+    "soon something is due, and whether it's overdue) and importance (exams "
+    "and higher-weight/point items generally matter more than low-stakes "
+    "homework). "
+    "When you reference a specific assignment, name it by its title instead "
+    "of its identifier, for example: 'Finish the Lab 2 report first.' "
+    "Be concise: give your prioritized recommendation once, as a short "
+    "ranked list with a brief reason for each item. Do not restate the full "
+    "list of assignments more than once and do not repeat the same ranking "
+    "in multiple sections. "
+    "If the list is empty or does not cover what the user asked about, say so "
+    "directly rather than guessing."
+)
+
+
+CLASSIFIER_SYSTEM_INSTRUCTION = (
+    "You are a classifier for an academic assistant. Decide whether the "
+    "user's question is about their personal schedule or workload - due "
+    "dates, deadlines, what to do, prioritization, overdue items - rather "
+    "than about course content or material - concepts, explanations, "
+    "syllabus policies, grading breakdowns, document content. "
+    "Respond with exactly one word and nothing else: TASK or CONTENT."
+)
+
 
 class GenerationError(Exception):
     """Raised when the Ollama generation backend can't be reached or fails."""
@@ -45,13 +81,17 @@ def _build_prompt(question: str, context: str) -> str:
         """
 
 
-def _payload(question: str, context: str, *, model: str, stream: bool) -> dict:
+def _payload(question: str, context: str, history: list[dict] | None, *, model: str, stream: bool, system_instruction: str = SYSTEM_INSTRUCTION) -> dict:
+    messages = [{"role": "system", "content": system_instruction}]
+
+    if history:
+        messages.extend(history[-_MAX_HISTORY_MESSAGES:])
+
+    messages.append({"role": "user", "content": _build_prompt(question, context)})
+
     return {
         "model": model,
-        "messages": [
-            {"role": "system", "content": SYSTEM_INSTRUCTION},
-            {"role": "user", "content": _build_prompt(question, context)},
-        ],
+        "messages": messages,
         "think": False,
         "stream": stream,
         "options": {"temperature": 0.1},
@@ -76,14 +116,50 @@ class GenerationService:
             f"Ollama request to {self.base_url} timed out after {_REQUEST_TIMEOUT}s."
         )
 
-    def _missing_model_error(self) -> GenerationError:
+    def _missing_model_error(self, model: str) -> GenerationError:
         return GenerationError(
-            f"Ollama model '{self.model}' is not available at {self.base_url}. "
-            f"Pull it first with: ollama pull {self.model}"
+            f"Ollama model '{model}' is not available at {self.base_url}. "
+            f"Pull it first with: ollama pull {model}"
         )
 
-    def generate_answer(self, question: str, context: str) -> str:
-        payload = _payload(question, context, model=self.model, stream=False)
+    def classify_question(self, question: str) -> bool:
+        """Returns True if the question is about the user's schedule/workload
+        rather than course content. Single attempt, no retries - this is a
+        cheap pre-routing step and should fail fast so the caller can fall
+        back to the keyword heuristic rather than stall the actual answer."""
+        payload = {
+            "model": settings.OLLAMA_CLASSIFIER_MODEL,
+            "messages": [
+                {"role": "system", "content": CLASSIFIER_SYSTEM_INSTRUCTION},
+                {"role": "user", "content": question},
+            ],
+            "think": False,
+            "stream": False,
+            "options": {"temperature": 0, "num_predict": 5},
+        }
+
+        try:
+            response = self._client.post(f"{self.base_url}/api/chat", json=payload)
+        except httpx.ConnectError:
+            raise self._connection_error()
+        except httpx.TimeoutException:
+            raise self._timeout_error()
+
+        if response.status_code == 404:
+            raise self._missing_model_error(settings.OLLAMA_CLASSIFIER_MODEL)
+
+        if not response.is_success:
+            raise GenerationError(
+                f"Ollama classification request failed "
+                f"({response.status_code}): {response.text}"
+            )
+
+        answer = response.json().get("message", {}).get("content", "")
+        return "task" in answer.strip().lower()
+
+    def generate_answer(self, question: str, context: str, history: list[dict] | None = None, system_instruction: str = SYSTEM_INSTRUCTION, model: str | None = None) -> str:
+        model = model or self.model
+        payload = _payload(question, context, history, model=model, stream=False, system_instruction=system_instruction)
         last_error: GenerationError | None = None
 
         for attempt in range(1, _MAX_ATTEMPTS + 1):
@@ -95,7 +171,7 @@ class GenerationService:
                 last_error = self._timeout_error()
             else:
                 if response.status_code == 404:
-                    raise self._missing_model_error()
+                    raise self._missing_model_error(model)
 
                 if response.status_code >= 500:
                     last_error = GenerationError(
@@ -120,9 +196,10 @@ class GenerationService:
 
         raise last_error
 
-    def stream_answer(self, question: str, context: str) -> Iterator[str]:
+    def stream_answer(self, question: str, context: str, history: list[dict] | None = None, system_instruction: str = SYSTEM_INSTRUCTION, model: str | None = None) -> Iterator[str]:
         """Yield the answer incrementally as text deltas arrive from the model."""
-        payload = _payload(question, context, model=self.model, stream=True)
+        model = model or self.model
+        payload = _payload(question, context, history, model=model, stream=True, system_instruction=system_instruction)
         last_error: GenerationError | None = None
         response: httpx.Response | None = None
 
@@ -139,7 +216,7 @@ class GenerationService:
             else:
                 if response.status_code == 404:
                     response.close()
-                    raise self._missing_model_error()
+                    raise self._missing_model_error(model)
 
                 if response.status_code >= 500:
                     last_error = GenerationError(

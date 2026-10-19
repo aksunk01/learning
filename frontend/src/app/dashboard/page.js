@@ -4,16 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SemesterHeading } from "@/components/semesters/semester-heading";
 import { SemesterProgress } from "@/components/semester-progress";
-import { CalendarIcon, ListChecksIcon } from "lucide-react";
+import { ListChecksIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { fetchDashboard } from "@/lib/dashboard-api";
 import { fetchSemesters } from "@/lib/semesters-api";
 import { fetchCourses } from "@/lib/courses-api";
 import { getCurrentUser, updateProfile } from "@/lib/auth-api";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { parseWallClockDate } from "@/lib/date-helpers";
 import { PlannerPanel } from "@/components/planner/planner-panel";
 import { DEFAULT_COURSE_COLOR } from "@/lib/colors";
@@ -28,16 +26,6 @@ const DASHBOARD_LAYOUTS = {
   board: BoardDashboard,
   kanban: KanbanDashboard,
 };
-
-function CalendarToggleButton() {
-  return (
-    <Link href="/calendar">
-      <Button variant="ghost" size="icon" aria-label="Calendar">
-        <CalendarIcon className="h-5 w-5" />
-      </Button>
-    </Link>
-  );
-}
 
 function PlannerToggleButton({ onClick }) {
   return (
@@ -215,9 +203,7 @@ export default function DashboardPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <CalendarToggleButton />
             <PlannerToggleButton onClick={() => setPlannerOpen(true)} />
-            <ThemeToggle />
           </div>
         </div>
 
@@ -342,9 +328,7 @@ export default function DashboardPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <CalendarToggleButton />
             <PlannerToggleButton onClick={() => setPlannerOpen(true)} />
-            <ThemeToggle />
           </div>
         </div>
         <div className="text-destructive">{error}</div>
@@ -398,9 +382,7 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <CalendarToggleButton />
           <PlannerToggleButton onClick={() => setPlannerOpen(true)} />
-          <ThemeToggle />
         </div>
       </div>
 

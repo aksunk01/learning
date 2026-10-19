@@ -52,3 +52,37 @@ class RetrievalService:
         )
 
         return results
+
+    def search_user(self, db: Session, user_id: UUID, query: str, limit: int = 5, max_distance: float = MAX_COSINE_DISTANCE):
+        """Cross-course search for auto-detection: same join as search_course but
+        without the Course.id filter, scoped only to the user's own materials.
+        Returns (DocumentChunk, CourseMaterial, Course, distance) tuples."""
+        query_embedding = self.embedding_service.embed_query(query)
+
+        distance = DocumentChunk.embedding.cosine_distance(query_embedding)
+
+        results = (
+            db.query(
+                DocumentChunk,
+                CourseMaterial,
+                Course,
+                distance.label("distance")
+            )
+            .join(
+                CourseMaterial,
+                DocumentChunk.material_id == CourseMaterial.id
+            ).join(
+                Course,
+                CourseMaterial.course_id == Course.id
+            )
+            .filter(
+                Course.user_id == user_id,
+                DocumentChunk.embedding.isnot(None),
+                distance <= max_distance
+            )
+            .order_by(distance)
+            .limit(limit)
+            .all()
+        )
+
+        return results

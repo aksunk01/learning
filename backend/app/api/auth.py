@@ -131,8 +131,7 @@ def login(
     }
 
 
-@router.get("/magic-login")
-def magic_login(token: str, db: Session = Depends(get_db)):
+def _resolve_magic_login_user(token: str, db: Session) -> User:
     if not settings.MAGIC_LOGIN_TOKEN or not settings.MAGIC_LOGIN_USER_EMAIL:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
@@ -148,8 +147,28 @@ def magic_login(token: str, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
+    return user
+
+
+@router.get("/magic-login")
+def magic_login(token: str, db: Session = Depends(get_db)):
+    user = _resolve_magic_login_user(token, db)
     access_token = create_access_token(data={"sub": str(user.id)})
 
     return RedirectResponse(
         url=f"{settings.FRONTEND_URL}/auth/magic-callback#token={access_token}"
     )
+
+
+@router.get("/magic-token")
+def magic_token(token: str, db: Session = Depends(get_db)):
+    """JSON sibling of /magic-login for non-browser clients (e.g. a Siri
+    Shortcut) that can't follow a redirect's URL fragment - returns the
+    access token directly instead of redirecting the frontend to it."""
+    user = _resolve_magic_login_user(token, db)
+    access_token = create_access_token(data={"sub": str(user.id)})
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+    }

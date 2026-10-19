@@ -1,11 +1,11 @@
-export async function askCourseQuestion(courseId, question, token, conversationId = null) {
+export async function askQuestion(question, token, { conversationId = null, courseId = null } = {}) {
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 
   if (!baseUrl) {
     throw new Error('NEXT_PUBLIC_API_BASE_URL environment variable is not set');
   }
 
-  const response = await fetch(`${baseUrl}/api/v1/courses/${courseId}/ask`, {
+  const response = await fetch(`${baseUrl}/api/v1/assistant/ask`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -14,23 +14,24 @@ export async function askCourseQuestion(courseId, question, token, conversationI
     body: JSON.stringify({
       question: question,
       limit: 5,
-      conversation_id: conversationId
+      conversation_id: conversationId,
+      course_id: courseId
     })
   });
 
   if (!response.ok) {
-    let errorMessage = `Failed to ask course question: ${response.status} ${response.statusText}`;
-    
+    let errorMessage = `Failed to ask question: ${response.status} ${response.statusText}`;
+
     let errorResponse = null;
     try {
       errorResponse = await response.json();
-      
+
       if (errorResponse.detail) {
         let detailMessage = '';
-        
+
         if (Array.isArray(errorResponse.detail)) {
           // Handle validation errors - extract meaningful messages
-          const messages = errorResponse.detail.map(item => 
+          const messages = errorResponse.detail.map(item =>
             item.msg || `${item.loc?.join('.')}: ${item.type}`
           );
           detailMessage = ` - ${messages.join('; ')}`;
@@ -38,31 +39,30 @@ export async function askCourseQuestion(courseId, question, token, conversationI
           // Handle string details
           detailMessage = ` - ${errorResponse.detail}`;
         }
-        
+
         errorMessage += detailMessage;
       }
     } catch {
       // If we can't parse the JSON, keep the generic message
     }
-    
+
     const error = new Error(errorMessage);
     error.status = response.status;
-    
+
     if (errorResponse && errorResponse.detail) {
       error.detail = errorResponse.detail;
     }
-    
+
     throw error;
   }
 
   return response.json();
 }
 
-export async function askCourseQuestionStream(
-  courseId,
+export async function askQuestionStream(
   question,
   token,
-  { conversationId = null, signal, onConversation, onSources, onToken } = {}
+  { conversationId = null, courseId = null, signal, onConversation, onSources, onToken } = {}
 ) {
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 
@@ -70,7 +70,7 @@ export async function askCourseQuestionStream(
     throw new Error('NEXT_PUBLIC_API_BASE_URL environment variable is not set');
   }
 
-  const response = await fetch(`${baseUrl}/api/v1/courses/${courseId}/ask/stream`, {
+  const response = await fetch(`${baseUrl}/api/v1/assistant/ask/stream`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -79,13 +79,14 @@ export async function askCourseQuestionStream(
     body: JSON.stringify({
       question: question,
       limit: 5,
-      conversation_id: conversationId
+      conversation_id: conversationId,
+      course_id: courseId
     }),
     signal
   });
 
   if (!response.ok) {
-    const error = new Error(`Failed to ask course question: ${response.status} ${response.statusText}`);
+    const error = new Error(`Failed to ask question: ${response.status} ${response.statusText}`);
     error.status = response.status;
     throw error;
   }
@@ -95,6 +96,7 @@ export async function askCourseQuestionStream(
   let buffer = "";
   let answer = "";
   let sources = [];
+  let usedCourseId = null;
 
   try {
     while (true) {
@@ -113,14 +115,16 @@ export async function askCourseQuestionStream(
           onConversation?.(event.conversation_id);
         } else if (event.type === "sources") {
           sources = event.sources;
-          onSources?.(sources);
+          usedCourseId = event.course_id || null;
+          onSources?.(sources, usedCourseId);
         } else if (event.type === "token") {
           answer += event.text;
           onToken?.(event.text, answer);
         } else if (event.type === "answer") {
           answer = event.answer;
           sources = event.sources || [];
-          onSources?.(sources);
+          usedCourseId = event.course_id || null;
+          onSources?.(sources, usedCourseId);
           onToken?.(answer, answer);
         } else if (event.type === "error") {
           throw new Error(event.message);
@@ -129,11 +133,11 @@ export async function askCourseQuestionStream(
     }
   } catch (error) {
     if (error.name === "AbortError") {
-      return { answer, sources, aborted: true };
+      return { answer, sources, courseId: usedCourseId, aborted: true };
     }
 
     throw error;
   }
 
-  return { answer, sources };
+  return { answer, sources, courseId: usedCourseId };
 }
