@@ -34,6 +34,8 @@ import { EditCourseDialog } from "@/components/courses/edit-course-dialog";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { DEFAULT_COURSE_COLOR, coursePageTintStyle } from "@/lib/colors";
+import { formatCourseSchedule } from "@/lib/course-schedule";
+import { ClockIcon } from "lucide-react";
 import { useColorIntensity } from "@/components/providers/color-intensity-provider";
 
 export default function CourseDetailsPage() {
@@ -495,6 +497,21 @@ const sortedAssignments = [...assignments].sort((a, b) => {
             <p className="text-muted-foreground mb-2">
               Semester: {course.semester.name}
             </p>
+          )}
+
+          {formatCourseSchedule(course.schedule) ? (
+            <p className="text-muted-foreground mb-2 flex items-center gap-1.5">
+              <ClockIcon className="h-4 w-4 shrink-0" />
+              {formatCourseSchedule(course.schedule)}
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setEditCourseOpen(true)}
+              className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-2 mb-2"
+            >
+              + Add meeting time
+            </button>
           )}
 
           {course.description && (

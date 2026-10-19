@@ -2,10 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { TrashIcon } from "lucide-react";
 import {
   fetchGradingCategories,
   createGradingCategory,
@@ -14,7 +12,9 @@ import {
   detectGradingCategories,
   fetchCourseGrade,
 } from "@/lib/grading-api";
+import { fetchCourseAssignments, updateAssignment } from "@/lib/assignments-api";
 import { fetchCourseMaterials } from "@/lib/course-materials-api";
+import { GradingCategoryCard } from "@/components/courses/grading-category-card";
 
 function formatPercent(value) {
   return value == null ? "—" : `${value.toFixed(1)}%`;
@@ -23,6 +23,7 @@ function formatPercent(value) {
 export function GradingTab({ courseId, token, onGradeChange }) {
   const [categories, setCategories] = useState([]);
   const [grade, setGrade] = useState(null);
+  const [assignments, setAssignments] = useState([]);
   const [syllabusMaterial, setSyllabusMaterial] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDetecting, setIsDetecting] = useState(false);
@@ -32,23 +33,21 @@ export function GradingTab({ courseId, token, onGradeChange }) {
   const [newWeight, setNewWeight] = useState("");
   const [isCreating, setIsCreating] = useState(false);
 
-  const [editingId, setEditingId] = useState(null);
-  const [editName, setEditName] = useState("");
-  const [editWeight, setEditWeight] = useState("");
-
   const load = async () => {
     setIsLoading(true);
     setError("");
 
     try {
-      const [categoriesData, gradeData, materials] = await Promise.all([
+      const [categoriesData, gradeData, materials, assignmentsData] = await Promise.all([
         fetchGradingCategories(courseId, token),
         fetchCourseGrade(courseId, token),
         fetchCourseMaterials(courseId, token),
+        fetchCourseAssignments(courseId, token),
       ]);
       setCategories(categoriesData);
       setGrade(gradeData);
       onGradeChange?.(gradeData);
+      setAssignments(assignmentsData);
       setSyllabusMaterial(
         materials
           .filter((m) => m.material_type?.trim().toLowerCase() === "syllabus" && m.processing_status === "completed")
@@ -102,32 +101,28 @@ export function GradingTab({ courseId, token, onGradeChange }) {
     }
   };
 
-  const startEditing = (category) => {
-    setEditingId(category.id);
-    setEditName(category.name);
-    setEditWeight(category.weight_percent.toString());
-  };
-
-  const handleSaveEdit = async (categoryId) => {
-    const weight = parseFloat(editWeight);
-    if (!editName.trim() || isNaN(weight)) return;
-
+  const handleSaveCategory = async (categoryId, updates) => {
     try {
-      await updateGradingCategory(courseId, categoryId, { name: editName.trim(), weight_percent: weight }, token);
-      setEditingId(null);
+      await updateGradingCategory(courseId, categoryId, updates, token);
       await load();
     } catch (err) {
       setError(err.message || "Failed to update category");
+      throw err;
     }
   };
 
-  const handleDelete = async (categoryId) => {
+  const handleDeleteCategory = async (categoryId) => {
     try {
       await deleteGradingCategory(courseId, categoryId, token);
       await load();
     } catch (err) {
       setError(err.message || "Failed to delete category");
     }
+  };
+
+  const handleSaveAssignmentScore = async (assignmentId, updates) => {
+    await updateAssignment(courseId, assignmentId, updates, token);
+    await load();
   };
 
   if (isLoading) {
@@ -182,51 +177,18 @@ export function GradingTab({ courseId, token, onGradeChange }) {
             const category = categories.find((c) => c.id === categoryGrade.id);
             if (!category) return null;
 
-            const isEditing = editingId === category.id;
+            const categoryAssignments = assignments.filter((a) => a.category_id === category.id);
 
             return (
-              <Card key={category.id}>
-                <CardContent className="p-4">
-                  {isEditing ? (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Input
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        className="w-40"
-                      />
-                      <Input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="any"
-                        value={editWeight}
-                        onChange={(e) => setEditWeight(e.target.value)}
-                        className="w-24"
-                      />
-                      <Button size="sm" onClick={() => handleSaveEdit(category.id)}>Save</Button>
-                      <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>Cancel</Button>
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-medium">{category.name}</h4>
-                          <Badge variant="secondary">{category.weight_percent}%</Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {formatPercent(categoryGrade.percent)} · {categoryGrade.graded_count}/{categoryGrade.total_count} graded
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline" onClick={() => startEditing(category)}>Edit</Button>
-                        <Button size="sm" variant="outline" onClick={() => handleDelete(category.id)}>
-                          <TrashIcon className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              <GradingCategoryCard
+                key={category.id}
+                category={category}
+                categoryGrade={categoryGrade}
+                categoryAssignments={categoryAssignments}
+                onSaveCategory={handleSaveCategory}
+                onDeleteCategory={handleDeleteCategory}
+                onSaveAssignmentScore={handleSaveAssignmentScore}
+              />
             );
           })}
         </div>

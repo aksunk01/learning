@@ -3,32 +3,26 @@
 import { fetchCourse } from '@/lib/courses-api';
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { fetchAssignment, linkAssignmentMaterials, unlinkAssignmentMaterial, updateAssignmentMaterial, updateAssignmentCompletion } from '@/lib/assignments-api';
+import { fetchAssignment, unlinkAssignmentMaterial, updateAssignmentMaterial, updateAssignmentCompletion } from '@/lib/assignments-api';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { fetchCourseMaterials, fetchCourseMaterialFile } from '@/lib/course-materials-api';
+import { fetchCourseMaterialFile } from '@/lib/course-materials-api';
 import { PageBreadcrumb } from "@/components/navigation/page-breadcrumb";
 import { formatWallClockDate } from "@/lib/date-helpers";
 import { Edit as EditIcon, ExternalLinkIcon, CheckIcon } from "lucide-react";
 import Link from "next/link";
 import { EditAssignmentDialog } from "@/components/assignments/edit-assignment-dialog";
-import { PdfViewer } from "@/components/documents/pdf-viewer";
+import { LinkMaterialDialog } from "@/components/assignments/link-material-dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AssignmentSubtasksCard } from "@/components/assignments/assignment-subtasks-card";
 
 const DOCX_MIME_TYPE =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+// Shared height cap for the desktop document viewer, used across its
+// loading/error/pdf/docx/unsupported states so they all stay the same size.
+const VIEWER_SIZE_CLASS = "h-[70vh] md:h-[75vh] lg:h-[80vh] max-h-[900px]";
 
 export default function AssignmentDetailPage() {
   const params = useParams();
@@ -38,15 +32,7 @@ export default function AssignmentDetailPage() {
   const [assignment, setAssignment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [courseMaterials, setCourseMaterials] = useState([]);
-  const [materialsLoading, setMaterialsLoading] = useState(false);
-  const [materialsError, setMaterialsError] = useState('');
-  const [searchText, setSearchText] = useState('');
-  const [selectedMaterialId, setSelectedMaterialId] = useState(null);
   const [selectedViewerMaterialId, setSelectedViewerMaterialId] = useState(null);
-  const [linking, setLinking] = useState(false);
-  const [linkError, setLinkError] = useState('');
   const [unlinking, setUnlinking] = useState(null);
   const [unlinkError, setUnlinkError] = useState('');
   const [makingPrimary, setMakingPrimary] = useState(null);
@@ -55,20 +41,24 @@ export default function AssignmentDetailPage() {
   const [isTogglingCompletion, setIsTogglingCompletion] = useState(false);
   const [completionError, setCompletionError] = useState('');
   const [viewerBlob, setViewerBlob] = useState(null);
+  const [viewerObjectUrl, setViewerObjectUrl] = useState(null);
   const [viewerMimeType, setViewerMimeType] = useState('');
   const [viewerLoading, setViewerLoading] = useState(false);
   const [viewerError, setViewerError] = useState('');
+  const [token, setToken] = useState(null);
   const docxContainerRef = useRef(null);
   const isMobile = useIsMobile();
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
-    
+
     if (!token) {
       // Redirect to login page if no token
       router.push('/login');
       return;
     }
+
+    Promise.resolve().then(() => setToken(token));
 
     const fetchAssignmentData = async () => {
       try {
@@ -196,28 +186,24 @@ export default function AssignmentDetailPage() {
     };
   }, [viewerBlob, viewerMimeType]);
 
-  const handleOpenDialog = async () => {
-    setDialogOpen(true);
-    if (!assignment?.course_id) {
-      // Course ID not available in assignment response
-      setMaterialsError('Course information not available');
+  // Hand PDFs off to the browser's native viewer instead of rendering them ourselves
+  useEffect(() => {
+    if (!viewerBlob || !viewerMimeType?.startsWith('application/pdf')) {
       return;
     }
 
-    setMaterialsLoading(true);
-    setMaterialsError('');
-    setSelectedMaterialId(null);
-    
-    try {
-      const token = localStorage.getItem('access_token');
-      const materials = await fetchCourseMaterials(assignment.course_id, token);
-      setCourseMaterials(materials);
-    } catch (err) {
-      setMaterialsError(err.message || 'Failed to fetch course materials');
-    } finally {
-      setMaterialsLoading(false);
-    }
-  };
+    const url = URL.createObjectURL(viewerBlob);
+    let isCancelled = false;
+
+    Promise.resolve().then(() => {
+      if (!isCancelled) setViewerObjectUrl(url);
+    });
+
+    return () => {
+      isCancelled = true;
+      URL.revokeObjectURL(url);
+    };
+  }, [viewerBlob, viewerMimeType]);
 
   const handleAssignmentUpdated = (updatedAssignment) => {
     setAssignment((currentAssignment) => ({
@@ -251,27 +237,6 @@ export default function AssignmentDetailPage() {
       setIsTogglingCompletion(false);
     }
   };
-
-  const handleCloseDialog = () => {
-    setDialogOpen(false);
-    setSelectedMaterialId(null);
-    setSearchText('');
-    setMaterialsError('');
-  };
-
-  const handleSearchChange = (e) => {
-    setSearchText(e.target.value);
-  };
-
-  const handleSelectMaterial = (materialId) => {
-    if (!assignment.linked_materials?.some(m => m.material_id === materialId)) {
-      setSelectedMaterialId(materialId);
-    }
-  };
-
-  const filteredMaterials = courseMaterials.filter(material =>
-    material.name.toLowerCase().includes(searchText.toLowerCase())
-  );
 
   if (loading) {
     return (
@@ -366,7 +331,7 @@ export default function AssignmentDetailPage() {
           )}
         </CardHeader>
           <CardContent>
-            <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 xl:gap-10">
+            <div className="flex flex-col lg:flex-row lg:items-start gap-6 lg:gap-8 xl:gap-10">
               <div className="order-2 lg:order-1 flex-1 min-w-0">
               <div>
                 {selectedViewerMaterial && (
@@ -402,26 +367,30 @@ export default function AssignmentDetailPage() {
                         </div>
 
                         {viewerLoading ? (
-                          <div className="flex items-center justify-center h-[78vh]">
+                          <div className={`flex items-center justify-center ${VIEWER_SIZE_CLASS}`}>
                             <p className="text-gray-500">Loading document...</p>
                           </div>
                         ) : viewerError ? (
-                          <div className="flex items-center justify-center h-[78vh]">
+                          <div className={`flex items-center justify-center ${VIEWER_SIZE_CLASS}`}>
                             <p className="text-red-500 text-center">{viewerError}</p>
                           </div>
                         ) : viewerBlob ? (
                           viewerMimeType?.startsWith('application/pdf') ? (
-                            <div className="h-[78vh] overflow-y-auto">
-                              <PdfViewer blob={viewerBlob} />
+                            <div className={`w-full border rounded overflow-hidden ${VIEWER_SIZE_CLASS}`}>
+                              <iframe
+                                src={viewerObjectUrl}
+                                title={selectedViewerMaterial.name}
+                                className="w-full h-full border-0"
+                              />
                             </div>
                           ) : viewerMimeType === DOCX_MIME_TYPE ? (
                             <div
                               ref={docxContainerRef}
-                              className="docx-viewer w-full h-[78vh] overflow-y-auto border rounded p-4 bg-white text-black"
+                              className={`docx-viewer w-full overflow-y-auto border rounded p-4 bg-white text-black ${VIEWER_SIZE_CLASS}`}
                               aria-label={`DOCX document viewer for ${selectedViewerMaterial.name}`}
                             />
                           ) : (
-                            <div className="flex flex-col items-center justify-center h-[78vh] p-4 text-center">
+                            <div className={`flex flex-col items-center justify-center p-4 text-center ${VIEWER_SIZE_CLASS}`}>
                               <p className="text-gray-500 mb-4">
                                 Preview is currently available for PDF and DOCX files only.
                               </p>
@@ -436,7 +405,7 @@ export default function AssignmentDetailPage() {
                             </div>
                           )
                         ) : (
-                          <div className="flex items-center justify-center h-[78vh]">
+                          <div className={`flex items-center justify-center ${VIEWER_SIZE_CLASS}`}>
                             <p className="text-gray-500 text-center">
                               Preview is currently available for PDF and DOCX files only.
                             </p>
@@ -454,7 +423,7 @@ export default function AssignmentDetailPage() {
                 )}
               </div>
             </div>
-              <div className="order-1 lg:order-2 w-full lg:w-[340px] shrink-0">
+              <div className="order-1 lg:order-2 w-full lg:w-[340px] shrink-0 lg:max-h-[80vh] lg:overflow-y-auto lg:self-start lg:-mx-1 lg:px-1 scrollbar-hide">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-4 mb-6">
                   {course && (
                     <div>
@@ -550,113 +519,12 @@ export default function AssignmentDetailPage() {
                 <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">
                   Linked Materials
                 </h3>
-                <Dialog open={dialogOpen} onOpenChange={(open) => {
-                  if (open) {
-                    handleOpenDialog();
-                  } else {
-                    handleCloseDialog();
-                  }
-                }}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm">+ Link Material</Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle>Link Material</DialogTitle>
-                      <DialogDescription>
-                        Select a material from your course to link it to this assignment.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4">
-                      <Input 
-                        placeholder="Search materials..." 
-                        className="mb-4"
-                        value={searchText}
-                        onChange={handleSearchChange}
-                      />
-                      {materialsLoading ? (
-                        <p className="text-gray-500 dark:text-gray-400">Loading materials...</p>
-                      ) : materialsError ? (
-                        <p className="text-red-500">{materialsError}</p>
-                      ) : filteredMaterials.length === 0 ? (
-                        <p className="text-gray-500 dark:text-gray-400">No materials found</p>
-                      ) : (
-                        <div className="space-y-2 max-h-60 overflow-y-auto">
-                          {filteredMaterials.map((material) => {
-                            const isLinked = assignment.linked_materials?.some(
-                              m => m.material_id === material.id
-                            );
-                            
-                            return (
-                              <div
-                                key={material.id}
-                                className={`p-3 rounded-md cursor-pointer border ${
-                                  selectedMaterialId === material.id
-                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                    : isLinked
-                                    ? 'border-gray-200 dark:border-gray-700 opacity-60'
-                                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
-                                }`}
-                                onClick={() => !isLinked && handleSelectMaterial(material.id)}
-                              >
-                                <div className="flex justify-between items-start">
-                                  <div>
-                                    <h4 className="font-medium">{material.name}</h4>
-                                    {material.material_type && (
-                                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                        {material.material_type}
-                                      </p>
-                                    )}
-                                  </div>
-                                  {isLinked && (
-                                    <Badge variant="secondary" className="text-xs">
-                                      Linked
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={handleCloseDialog}>Cancel</Button>
-                      <Button 
-                        disabled={!selectedMaterialId || materialsLoading || linking}
-                        onClick={async () => {
-                          if (!selectedMaterialId) return;
-                          
-                          setLinkError('');
-                          setLinking(true);
-                          
-                          try {
-                            const token = localStorage.getItem('access_token');
-                            await linkAssignmentMaterials(assignment.id, [{
-                              material_id: selectedMaterialId,
-                              relationship_type: "reference",
-                              is_primary: false
-                            }], token);
-                            
-                            // Refresh assignment to get updated linked materials
-                            const refreshedAssignment = await fetchAssignment(assignment.id, token);
-                            setAssignment(refreshedAssignment);
-                            
-                            handleCloseDialog();
-                          } catch (err) {
-                            setLinkError(err.message || 'Failed to link material');
-                          } finally {
-                            setLinking(false);
-                          }
-                        }}
-                      >
-                        {linking ? 'Linking...' : 'Link Material'}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+                <LinkMaterialDialog
+                  assignment={assignment}
+                  token={token}
+                  onLinked={handleAssignmentUpdated}
+                />
               </div>
-
               <div className="space-y-3">
                 {assignment.linked_materials.map((material) => (
                 <Card
@@ -784,119 +652,11 @@ export default function AssignmentDetailPage() {
                 <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">
                   Linked Materials
                 </h3>
-                <Dialog open={dialogOpen} onOpenChange={(open) => {
-                  if (open) {
-                    handleOpenDialog();
-                  } else {
-                    handleCloseDialog();
-                  }
-                }}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm">+ Link Material</Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle>Link Material</DialogTitle>
-                      <DialogDescription>
-                        Select a material from your course to link it to this assignment.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4">
-                      <Input 
-                        placeholder="Search materials..." 
-                        className="mb-4"
-                        value={searchText}
-                        onChange={handleSearchChange}
-                      />
-                      {materialsLoading ? (
-                        <p className="text-gray-500 dark:text-gray-400">Loading materials...</p>
-                      ) : materialsError ? (
-                        <p className="text-red-500">{materialsError}</p>
-                      ) : filteredMaterials.length === 0 ? (
-                        <p className="text-gray-500 dark:text-gray-400">No materials found</p>
-                      ) : (
-                        <div className="space-y-2 max-h-60 overflow-y-auto">
-                          {filteredMaterials.map((material) => {
-                            const isLinked = assignment.linked_materials?.some(
-                              m => m.material_id === material.id
-                            );
-                            
-                            return (
-                              <div
-                                key={material.id}
-                                className={`p-3 rounded-md cursor-pointer border ${
-                                  selectedMaterialId === material.id
-                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                    : isLinked
-                                    ? 'border-gray-200 dark:border-gray-700 opacity-60'
-                                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
-                                }`}
-                                onClick={() => !isLinked && handleSelectMaterial(material.id)}
-                              >
-                                <div className="flex justify-between items-start">
-                                  <div>
-                                    <h4 className="font-medium">{material.name}</h4>
-                                    {material.material_type && (
-                                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                        {material.material_type}
-                                      </p>
-                                    )}
-                                  </div>
-                                  {isLinked && (
-                                    <Badge variant="secondary" className="text-xs">
-                                      Linked
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={handleCloseDialog}>Cancel</Button>
-                      <Button 
-                        disabled={!selectedMaterialId || materialsLoading || materialsLoading || linking}
-                        onClick={async () => {
-                          
-                          if (!selectedMaterialId) return;
-
-                          setLinkError('');
-                          setLinking(true);
-
-                          try {
-                            const token = localStorage.getItem('access_token');
-
-                            await linkAssignmentMaterials(
-                              assignment.id,
-                              [{
-                                material_id: selectedMaterialId,
-                                relationship_type: "reference",
-                                is_primary: false
-                              }],
-                              token
-                            );
-
-                            const refreshedAssignment = await fetchAssignment(
-                              assignment.id,
-                              token
-                            );
-
-                            setAssignment(refreshedAssignment);
-                            handleCloseDialog();
-                          } catch (e) {
-                            setLinkError(e.message || 'Failed to link material');
-                          } finally {
-                            setLinking(false);
-                          }
-                        }}
-                      >
-                        Link Material
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+                <LinkMaterialDialog
+                  assignment={assignment}
+                  token={token}
+                  onLinked={handleAssignmentUpdated}
+                />
               </div>
 
               <Card className="p-4">

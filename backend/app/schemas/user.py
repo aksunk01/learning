@@ -14,7 +14,7 @@ class UserResponse(BaseModel):
 
 class UserCreate(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(min_length=8, max_length=255)
 
 class UserRead(BaseModel):
     id: UUID

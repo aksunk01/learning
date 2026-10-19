@@ -29,6 +29,9 @@ import {
   CourseColorPicker,
   COURSE_COLOR_PALETTE,
 } from "@/components/courses/course-color-picker";
+import { useControlledOpen } from "@/hooks/use-controlled-open";
+import { MeetingTimeField } from "@/components/courses/meeting-time-field";
+import { meetingFormValueToSchedule } from "@/lib/course-schedule";
 
 // Define the validation schema
 const courseSchema = z.object({
@@ -37,10 +40,17 @@ const courseSchema = z.object({
   description: z.string().optional().nullable(),
   semester_id: z.string().optional().nullable(),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Pick a color"),
+  meetingTime: z.any().optional().nullable(),
 });
 
-export function CreateCourseDialog({ token, onCourseCreated }) {
-  const [isOpen, setIsOpen] = useState(false);
+export function CreateCourseDialog({
+  token,
+  onCourseCreated,
+  open: openProp,
+  onOpenChange: onOpenChangeProp,
+  trigger,
+}) {
+  const [isOpen, setIsOpen] = useControlledOpen(openProp, onOpenChangeProp);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [takenColors, setTakenColors] = useState([]);
@@ -53,6 +63,7 @@ export function CreateCourseDialog({ token, onCourseCreated }) {
       description: "",
       semester_id: null,
       color: COURSE_COLOR_PALETTE[0],
+      meetingTime: null,
     },
   });
 
@@ -99,6 +110,7 @@ export function CreateCourseDialog({ token, onCourseCreated }) {
       description: data.description?.trim() || null,
       semester_id: data.semester_id || null,
       color: data.color,
+      schedule: meetingFormValueToSchedule(data.meetingTime),
     };
 
     try {
@@ -131,12 +143,16 @@ export function CreateCourseDialog({ token, onCourseCreated }) {
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button>
-          <PlusIcon className="mr-2 h-4 w-4" />
-          Add Course
-        </Button>
-      </DialogTrigger>
+      {trigger !== null && (
+        <DialogTrigger asChild>
+          {trigger || (
+            <Button>
+              <PlusIcon className="mr-2 h-4 w-4" />
+              Add Course
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Create New Course</DialogTitle>
@@ -201,8 +217,18 @@ export function CreateCourseDialog({ token, onCourseCreated }) {
               )}
               <FieldError>{form.formState.errors.color?.message}</FieldError>
             </Field>
+
+            <Field name="meetingTime">
+              <FieldLabel>Meeting Time</FieldLabel>
+              <MeetingTimeField
+                value={form.watch("meetingTime")}
+                onChange={(value) =>
+                  form.setValue("meetingTime", value, { shouldValidate: true })
+                }
+              />
+            </Field>
           </FieldGroup>
-          
+
           {error && (
             <div className="text-sm text-destructive">
               Error: {error}
