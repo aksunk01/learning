@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,20 +12,94 @@ function formatPercent(value) {
   return value == null ? "—" : `${value.toFixed(1)}%`;
 }
 
+function draftsFromAssignments(categoryAssignments) {
+  return Object.fromEntries(
+    categoryAssignments.map((assignment) => [
+      assignment.id,
+      {
+        score: assignment.score_earned != null ? String(assignment.score_earned) : "",
+        points: assignment.points != null ? String(assignment.points) : "",
+        error: "",
+      },
+    ])
+  );
+}
+
 // One grading category: editable name/weight, and an expandable list of its
-// assignments where scores and points can be updated.
+// assignments where scores and points can be updated together, saved with a
+// single "Save Scores" button for the whole category.
 export function GradingCategoryCard({
   category,
   categoryGrade,
   categoryAssignments,
   onSaveCategory,
   onDeleteCategory,
-  onSaveAssignmentScore,
+  onSaveAssignmentScores,
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(category.name);
   const [editWeight, setEditWeight] = useState(String(category.weight_percent));
   const [isExpanded, setIsExpanded] = useState(false);
+  const [drafts, setDrafts] = useState(() => draftsFromAssignments(categoryAssignments));
+  const [isSavingScores, setIsSavingScores] = useState(false);
+  const [scoresError, setScoresError] = useState("");
+
+  // Re-sync drafts whenever the server data changes (after a save, or when
+  // the assignment list itself changes) - discards any unsaved edits, same
+  // as the rest of this page's "reload after save" pattern.
+  useEffect(() => {
+    setDrafts(draftsFromAssignments(categoryAssignments));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryAssignments]);
+
+  const handleDraftChange = (assignmentId, field, value) => {
+    setDrafts((current) => ({
+      ...current,
+      [assignmentId]: { ...current[assignmentId], [field]: value, error: "" },
+    }));
+  };
+
+  const handleSaveScores = async () => {
+    const updates = {};
+    const nextDrafts = { ...drafts };
+    let hasError = false;
+
+    for (const assignment of categoryAssignments) {
+      const draft = nextDrafts[assignment.id] || { score: "", points: "" };
+      const parsedScore = draft.score.trim() === "" ? null : parseFloat(draft.score);
+      const parsedPoints = draft.points.trim() === "" ? null : parseFloat(draft.points);
+
+      if (draft.score.trim() !== "" && Number.isNaN(parsedScore)) {
+        nextDrafts[assignment.id] = { ...draft, error: "Score must be a number" };
+        hasError = true;
+        continue;
+      }
+
+      if (draft.points.trim() !== "" && (Number.isNaN(parsedPoints) || parsedPoints < 0)) {
+        nextDrafts[assignment.id] = { ...draft, error: "Points must be a number greater than or equal to 0" };
+        hasError = true;
+        continue;
+      }
+
+      updates[assignment.id] = { score_earned: parsedScore, points: parsedPoints };
+    }
+
+    if (hasError) {
+      setDrafts(nextDrafts);
+      return;
+    }
+
+    setScoresError("");
+    setIsSavingScores(true);
+
+    try {
+      await onSaveAssignmentScores(category.id, updates);
+    } catch (err) {
+      setScoresError(err.message || "Failed to save scores");
+    } finally {
+      setIsSavingScores(false);
+    }
+  };
 
   const startEditing = () => {
     setEditName(category.name);
@@ -125,13 +199,29 @@ export function GradingCategoryCard({
                     No assignments in this category yet.
                   </p>
                 ) : (
-                  categoryAssignments.map((assignment) => (
-                    <AssignmentScoreRow
-                      key={assignment.id}
-                      assignment={assignment}
-                      onSave={(updates) => onSaveAssignmentScore(assignment.id, updates)}
-                    />
-                  ))
+                  <>
+                    {categoryAssignments.map((assignment) => {
+                      const draft = drafts[assignment.id] || { score: "", points: "", error: "" };
+
+                      return (
+                        <AssignmentScoreRow
+                          key={assignment.id}
+                          assignment={assignment}
+                          score={draft.score}
+                          points={draft.points}
+                          error={draft.error}
+                          onChange={(field, value) => handleDraftChange(assignment.id, field, value)}
+                        />
+                      );
+                    })}
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <Button size="sm" onClick={handleSaveScores} disabled={isSavingScores}>
+                        {isSavingScores ? "Saving..." : "Save Scores"}
+                      </Button>
+                      {scoresError && <p className="text-sm text-destructive">{scoresError}</p>}
+                    </div>
+                  </>
                 )}
               </div>
             )}

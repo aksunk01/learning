@@ -4,13 +4,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchAssignmentsInRange } from "@/lib/assignments-api";
 import { fetchCourses } from "@/lib/courses-api";
+import { fetchCalendarEvents } from "@/lib/calendar-events-api";
 import { formatDateKey, parseWallClockDate } from "@/lib/date-helpers";
-import { DEFAULT_COURSE_COLOR, hexToRgba, courseAccentColor } from "@/lib/colors";
+import { DEFAULT_COURSE_COLOR, DEFAULT_EVENT_COLOR, hexToRgba, courseAccentColor } from "@/lib/colors";
 import { buildCourseMeetingsByDay } from "@/lib/course-schedule";
 import { useColorIntensity } from "@/components/providers/color-intensity-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AddMenu } from "@/components/navigation/add-menu";
 import { WeekView } from "@/components/calendar/week-view";
+import { EditEventDialog } from "@/components/calendar/edit-event-dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,11 +38,14 @@ export default function CalendarPage() {
   const [viewMode, setViewMode] = useState("month");
   const [cursorDate, setCursorDate] = useState(() => new Date());
   const [assignments, setAssignments] = useState([]);
+  const [events, setEvents] = useState([]);
   const [courses, setCourses] = useState([]);
   const [coursesById, setCoursesById] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeDayKey, setActiveDayKey] = useState(null);
+  const [editingEvent, setEditingEvent] = useState(null);
+  const [editEventOpen, setEditEventOpen] = useState(false);
 
   useEffect(() => {
     const storedToken = localStorage.getItem("access_token");
@@ -87,13 +92,15 @@ export default function CalendarPage() {
         const start = formatDateKey(gridDays[0]);
         const end = formatDateKey(gridDays[gridDays.length - 1]);
 
-        const [assignmentsData, coursesData] = await Promise.all([
+        const [assignmentsData, coursesData, eventsData] = await Promise.all([
           fetchAssignmentsInRange(start, end, token, { includeCompleted: true }),
           fetchCourses(token),
+          fetchCalendarEvents(token, { start, end }),
         ]);
 
         setAssignments(assignmentsData);
         setCourses(coursesData);
+        setEvents(eventsData);
         setCoursesById(
           Object.fromEntries(
             coursesData.map((course) => [
@@ -142,6 +149,36 @@ export default function CalendarPage() {
   }, [assignments]);
 
   const courseMeetingsByDay = useMemo(() => buildCourseMeetingsByDay(courses), [courses]);
+
+  // Keyed by the event's start day. Multi-day all-day events only show on
+  // their start day - good enough for one-off events and appointments.
+  const eventsByDay = useMemo(() => {
+    const map = {};
+
+    for (const event of events) {
+      const key = formatDateKey(new Date(event.start_at));
+      (map[key] ||= []).push(event);
+    }
+
+    for (const key of Object.keys(map)) {
+      map[key].sort((a, b) => new Date(a.start_at) - new Date(b.start_at));
+    }
+
+    return map;
+  }, [events]);
+
+  const handleEventClick = (event) => {
+    setEditingEvent(event);
+    setEditEventOpen(true);
+  };
+
+  // A series-level edit/delete can add, remove, or shift many occurrences
+  // at once (e.g. changing the recurrence rule), so a full silent reload is
+  // simpler and more correct than trying to patch the expanded event list
+  // in place.
+  const handleEventChanged = () => {
+    loadAssignments({ silent: true });
+  };
 
   const goToPrev = () =>
     setCursorDate((current) => {
@@ -207,6 +244,7 @@ export default function CalendarPage() {
             onCourseCreated={() => loadAssignments({ silent: true })}
             onAssignmentCreated={() => loadAssignments({ silent: true })}
             onMaterialUploaded={() => loadAssignments({ silent: true })}
+            onEventCreated={() => loadAssignments({ silent: true })}
           />
           <ThemeToggle />
         </div>
@@ -261,11 +299,13 @@ export default function CalendarPage() {
             gridDays={gridDays}
             assignmentsByDay={assignmentsByDay}
             courseMeetingsByDay={courseMeetingsByDay}
+            eventsByDay={eventsByDay}
             coursesById={coursesById}
             intensityFactor={intensityFactor}
             todayKey={todayKey}
             onAssignmentClick={handleAssignmentClick}
             onCourseClick={handleCourseClick}
+            onEventClick={handleEventClick}
           />
         )
       ) : (
@@ -296,7 +336,10 @@ export default function CalendarPage() {
                 const isCurrentMonth = day.getMonth() === cursorDate.getMonth();
                 const isToday = key === todayKey;
                 const dayAssignments = assignmentsByDay[key] || [];
+                const dayEvents = eventsByDay[key] || [];
                 const hasAssignments = dayAssignments.length > 0;
+                const hasEvents = dayEvents.length > 0;
+                const hasItems = hasAssignments || hasEvents;
                 const hasExam = dayAssignments.some((assignment) =>
                   /exam|test/i.test(assignment.assignment_type || "")
                 );
@@ -316,14 +359,14 @@ export default function CalendarPage() {
                         ? "border border-primary"
                         : "border border-border"
                     } ${
-                      hasAssignments ? "cursor-pointer hover:bg-muted/50" : ""
+                      hasItems ? "cursor-pointer hover:bg-muted/50" : ""
                     } ${activeDayKey === key ? "z-20" : ""}`}
-                    onMouseEnter={() => hasAssignments && setActiveDayKey(key)}
+                    onMouseEnter={() => hasItems && setActiveDayKey(key)}
                     onMouseLeave={() =>
                       setActiveDayKey((current) => (current === key ? null : current))
                     }
                     onClick={() =>
-                      hasAssignments &&
+                      hasItems &&
                       setActiveDayKey((current) => (current === key ? null : key))
                     }
                   >
@@ -331,7 +374,7 @@ export default function CalendarPage() {
                       {day.getDate()}
                     </span>
 
-                    {hasAssignments && (
+                    {hasItems && (
                       <div className="mt-1 flex-1 flex flex-col gap-1 overflow-hidden">
                         {dayAssignments.slice(0, 2).map((assignment) => {
                           const courseColor =
@@ -358,9 +401,29 @@ export default function CalendarPage() {
                             </span>
                           );
                         })}
-                        {dayAssignments.length > 2 && (
+                        {dayEvents.slice(0, Math.max(0, 2 - dayAssignments.length)).map((event) => {
+                          const eventColor =
+                            event.color ||
+                            (event.course_id && coursesById[event.course_id]?.color) ||
+                            DEFAULT_EVENT_COLOR;
+
+                          return (
+                            <span
+                              key={event.id}
+                              className="text-xs truncate px-1 rounded border border-dashed"
+                              style={{
+                                backgroundColor: hexToRgba(eventColor, 0.15 * intensityFactor),
+                                color: eventColor,
+                                borderColor: hexToRgba(eventColor, 0.4 * intensityFactor),
+                              }}
+                            >
+                              {event.title}
+                            </span>
+                          );
+                        })}
+                        {dayAssignments.length + dayEvents.length > 2 && (
                           <span className="text-xs text-muted-foreground">
-                            +{dayAssignments.length - 2} more
+                            +{dayAssignments.length + dayEvents.length - 2} more
                           </span>
                         )}
                       </div>
@@ -431,6 +494,48 @@ export default function CalendarPage() {
                                   </div>
                                 );
                               })}
+
+                              {dayEvents.map((event) => {
+                                const eventColor =
+                                  event.color ||
+                                  (event.course_id && coursesById[event.course_id]?.color) ||
+                                  DEFAULT_EVENT_COLOR;
+
+                                return (
+                                  <div
+                                    key={event.id}
+                                    className="flex items-center justify-between gap-2 p-2 rounded border border-dashed cursor-pointer hover:bg-muted/50 transition-colors"
+                                    style={{ borderLeftWidth: "3px", borderLeftStyle: "solid", borderLeftColor: courseAccentColor(eventColor, intensityFactor) }}
+                                    onClick={() => handleEventClick(event)}
+                                  >
+                                    <div className="min-w-0 flex items-start gap-2">
+                                      <span
+                                        className="h-2 w-2 rounded-full shrink-0 mt-1"
+                                        style={{ backgroundColor: courseAccentColor(eventColor, intensityFactor) }}
+                                      />
+                                      <div className="min-w-0">
+                                        <p className="text-sm font-medium truncate">
+                                          {event.title}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground truncate">
+                                          {event.course_id
+                                            ? coursesById[event.course_id]?.name
+                                            : "Personal event"}
+                                          {event.location ? ` · ${event.location}` : ""}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <Badge variant="outline" className="shrink-0 text-xs">
+                                      {event.all_day
+                                        ? "All day"
+                                        : new Date(event.start_at).toLocaleTimeString("en-US", {
+                                            hour: "numeric",
+                                            minute: "2-digit",
+                                          })}
+                                    </Badge>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </CardContent>
                         </Card>
@@ -443,6 +548,14 @@ export default function CalendarPage() {
           )}
         </>
       )}
+
+      <EditEventDialog
+        event={editingEvent}
+        token={token}
+        open={editEventOpen}
+        onOpenChange={setEditEventOpen}
+        onChanged={handleEventChanged}
+      />
     </div>
   );
 }

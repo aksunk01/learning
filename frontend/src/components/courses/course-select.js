@@ -10,7 +10,9 @@ import {
 } from "@/components/ui/select";
 import { fetchCourses } from "@/lib/courses-api";
 
-export function CourseSelect({ token, value, onChange }) {
+const NONE_VALUE = "__none__";
+
+export function CourseSelect({ token, value, onChange, allowNone = false, noneLabel = "No course" }) {
   const [courses, setCourses] = useState([]);
 
   useEffect(() => {
@@ -32,11 +34,17 @@ export function CourseSelect({ token, value, onChange }) {
   }, [token]);
 
   return (
-    <Select value={value || ""} onValueChange={onChange}>
+    <Select
+      value={value || (allowNone ? NONE_VALUE : "")}
+      onValueChange={(selected) =>
+        onChange(selected === NONE_VALUE ? null : selected)
+      }
+    >
       <SelectTrigger className="w-full">
         <SelectValue placeholder="Select a course" />
       </SelectTrigger>
       <SelectContent>
+        {allowNone && <SelectItem value={NONE_VALUE}>{noneLabel}</SelectItem>}
         {courses.map((course) => (
           <SelectItem key={course.id} value={course.id}>
             {course.name}

@@ -1,47 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-// A single assignment's score/points editor. Manages its own draft values
-// and save state; persistence is delegated to `onSave`.
-export function AssignmentScoreRow({ assignment, onSave }) {
-  const [score, setScore] = useState(
-    assignment.score_earned != null ? String(assignment.score_earned) : ""
-  );
-  const [points, setPoints] = useState(
-    assignment.points != null ? String(assignment.points) : ""
-  );
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-
-  const handleSave = async () => {
-    const parsedScore = score.trim() === "" ? null : parseFloat(score);
-    const parsedPoints = points.trim() === "" ? null : parseFloat(points);
-
-    if (score.trim() !== "" && Number.isNaN(parsedScore)) {
-      setError("Score must be a number");
-      return;
-    }
-
-    if (points.trim() !== "" && (Number.isNaN(parsedPoints) || parsedPoints < 0)) {
-      setError("Points must be a number greater than or equal to 0");
-      return;
-    }
-
-    setError("");
-    setSaving(true);
-
-    try {
-      await onSave({ score_earned: parsedScore, points: parsedPoints });
-    } catch (err) {
-      setError(err.message || "Failed to update score");
-    } finally {
-      setSaving(false);
-    }
-  };
-
+// A single assignment's score/points editor row. Purely controlled - the
+// draft values and save/error state live in the parent (GradingCategoryCard),
+// which batches every row in a category behind one "Save Scores" button.
+export function AssignmentScoreRow({ assignment, score, points, error, onChange }) {
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
@@ -57,7 +21,7 @@ export function AssignmentScoreRow({ assignment, onSave }) {
               step="any"
               placeholder="Score"
               value={score}
-              onChange={(e) => setScore(e.target.value)}
+              onChange={(e) => onChange("score", e.target.value)}
               className="w-24"
             />
           </div>
@@ -70,13 +34,10 @@ export function AssignmentScoreRow({ assignment, onSave }) {
               step="any"
               placeholder="Points"
               value={points}
-              onChange={(e) => setPoints(e.target.value)}
+              onChange={(e) => onChange("points", e.target.value)}
               className="w-24"
             />
           </div>
-          <Button size="sm" className="mt-5" onClick={handleSave} disabled={saving}>
-            {saving ? "Saving..." : "Save"}
-          </Button>
         </div>
       </div>
       {error && <p className="text-sm text-destructive mt-1">{error}</p>}

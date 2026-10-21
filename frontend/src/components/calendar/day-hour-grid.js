@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { DEFAULT_COURSE_COLOR, hexToRgba, courseAccentColor } from "@/lib/colors";
+import { DEFAULT_COURSE_COLOR, DEFAULT_EVENT_COLOR, hexToRgba, courseAccentColor } from "@/lib/colors";
 import { formatDateKey, parseWallClockDate } from "@/lib/date-helpers";
 import { formatTime12h, getDayOfWeekValue } from "@/lib/course-schedule";
 
@@ -65,11 +65,11 @@ function layoutDayItems(items) {
   return placed;
 }
 
-// Merge a day's due assignments with its recurring (non-online) course
-// meetings into one positioned list for the hour grid. Meetings for courses
-// whose semester has already ended by `dayKey` are dropped; assignments are
-// never filtered by semester.
-function buildDayItems(dayAssignments, dayMeetings, dayKey) {
+// Merge a day's due assignments, recurring (non-online) course meetings, and
+// timed personal calendar events into one positioned list for the hour grid.
+// Meetings for courses whose semester has already ended by `dayKey` are
+// dropped; assignments and events are never filtered by semester.
+function buildDayItems(dayAssignments, dayMeetings, dayEvents, dayKey) {
   const assignmentItems = dayAssignments.map((assignment) => {
     const due = parseWallClockDate(assignment.due_at);
     const start = due.getHours() * 60 + due.getMinutes();
@@ -96,7 +96,31 @@ function buildDayItems(dayAssignments, dayMeetings, dayKey) {
       meeting,
     }));
 
-  return layoutDayItems([...assignmentItems, ...meetingItems]);
+  // All-day events show in the header strip above, not here. Timed events
+  // are clamped to this day's 0-24h window in case they cross midnight.
+  const eventItems = dayEvents
+    .filter((event) => !event.all_day)
+    .map((event) => {
+      const start = new Date(event.start_at);
+      const startMinutes = start.getHours() * 60 + start.getMinutes();
+      let endMinutes = startMinutes + EVENT_LAYOUT_MINUTES;
+
+      if (event.end_at) {
+        const end = new Date(event.end_at);
+        const sameDay = formatDateKey(end) === formatDateKey(start);
+        endMinutes = sameDay ? end.getHours() * 60 + end.getMinutes() : 24 * 60;
+      }
+
+      return {
+        kind: "event",
+        key: `event-${event.id}`,
+        start: startMinutes,
+        end: Math.max(endMinutes, startMinutes + 15),
+        event,
+      };
+    });
+
+  return layoutDayItems([...assignmentItems, ...meetingItems, ...eventItems]);
 }
 
 // An hour-by-hour grid (Google Calendar/Teams style) for one or more day
@@ -107,11 +131,13 @@ export function DayHourGrid({
   days,
   assignmentsByDay,
   courseMeetingsByDay = {},
+  eventsByDay = {},
   coursesById,
   intensityFactor,
   todayKey,
   onAssignmentClick,
   onCourseClick,
+  onEventClick,
   className = "max-h-[600px]",
 }) {
   const scrollRef = useRef(null);
@@ -151,7 +177,8 @@ export function DayHourGrid({
           const key = formatDateKey(day);
           const dayAssignments = assignmentsByDay[key] || [];
           const dayMeetings = courseMeetingsByDay[getDayOfWeekValue(day)] || [];
-          const items = buildDayItems(dayAssignments, dayMeetings, key);
+          const dayEvents = eventsByDay[key] || [];
+          const items = buildDayItems(dayAssignments, dayMeetings, dayEvents, key);
           const isToday = key === todayKey;
 
           return (
@@ -201,6 +228,34 @@ export function DayHourGrid({
                       <span className="hidden sm:inline">
                         {" "}· {formatTime12h(meeting.start_time)}
                       </span>
+                    </div>
+                  );
+                }
+
+                if (item.kind === "event") {
+                  const { event, start, end, totalColumns, columnIndex } = item;
+                  const eventColor =
+                    event.color ||
+                    (event.course_id && coursesById[event.course_id]?.color) ||
+                    DEFAULT_EVENT_COLOR;
+
+                  return (
+                    <div
+                      key={item.key}
+                      className="absolute rounded px-1 py-0.5 text-[10px] sm:text-xs truncate cursor-pointer hover:brightness-95"
+                      style={{
+                        top: `${(start / 60) * HOUR_HEIGHT_PX}px`,
+                        height: `${((end - start) / 60) * HOUR_HEIGHT_PX - 2}px`,
+                        left: `calc(${(columnIndex / totalColumns) * 100}% + 2px)`,
+                        width: `calc(${100 / totalColumns}% - 4px)`,
+                        backgroundColor: hexToRgba(eventColor, 0.25 * intensityFactor),
+                        color: eventColor,
+                        border: `1px dashed ${courseAccentColor(eventColor, intensityFactor)}`,
+                      }}
+                      onClick={() => onEventClick(event)}
+                      title={`${event.title}${event.location ? ` · ${event.location}` : ""}`}
+                    >
+                      {event.title}
                     </div>
                   );
                 }

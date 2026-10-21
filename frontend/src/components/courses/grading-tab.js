@@ -120,8 +120,15 @@ export function GradingTab({ courseId, token, onGradeChange }) {
     }
   };
 
-  const handleSaveAssignmentScore = async (assignmentId, updates) => {
-    await updateAssignment(courseId, assignmentId, updates, token);
+  // `updatesByAssignmentId` is { [assignmentId]: { score_earned, points } }
+  // for every assignment in one category, saved together behind a single
+  // "Save Scores" button rather than one request per row.
+  const handleSaveCategoryScores = async (categoryId, updatesByAssignmentId) => {
+    await Promise.all(
+      Object.entries(updatesByAssignmentId).map(([assignmentId, updates]) =>
+        updateAssignment(courseId, assignmentId, updates, token)
+      )
+    );
     await load();
   };
 
@@ -187,7 +194,7 @@ export function GradingTab({ courseId, token, onGradeChange }) {
                 categoryAssignments={categoryAssignments}
                 onSaveCategory={handleSaveCategory}
                 onDeleteCategory={handleDeleteCategory}
-                onSaveAssignmentScore={handleSaveAssignmentScore}
+                onSaveAssignmentScores={handleSaveCategoryScores}
               />
             );
           })}
