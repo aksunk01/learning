@@ -30,10 +30,27 @@ function timeToMinutes(time24h) {
 function layoutDayItems(items) {
   const sorted = [...items].sort((a, b) => a.start - b.start);
 
-  const columnEndTimes = [];
   const placed = [];
+  let clusterItems = [];
+  let clusterEnd = -Infinity;
+  let columnEndTimes = [];
+
+  const flushCluster = () => {
+    if (clusterItems.length === 0) return;
+    const totalColumns = columnEndTimes.length || 1;
+    for (const item of clusterItems) {
+      placed.push({ ...item, totalColumns });
+    }
+    clusterItems = [];
+    columnEndTimes = [];
+  };
 
   for (const item of sorted) {
+    if (item.start >= clusterEnd) {
+      flushCluster();
+    }
+    clusterEnd = Math.max(clusterEnd, item.end);
+
     let columnIndex = columnEndTimes.findIndex((endTime) => endTime <= item.start);
     if (columnIndex === -1) {
       columnIndex = columnEndTimes.length;
@@ -41,16 +58,18 @@ function layoutDayItems(items) {
     } else {
       columnEndTimes[columnIndex] = item.end;
     }
-    placed.push({ ...item, columnIndex });
+    clusterItems.push({ ...item, columnIndex });
   }
+  flushCluster();
 
-  const totalColumns = columnEndTimes.length || 1;
-  return placed.map((item) => ({ ...item, totalColumns }));
+  return placed;
 }
 
 // Merge a day's due assignments with its recurring (non-online) course
-// meetings into one positioned list for the hour grid.
-function buildDayItems(dayAssignments, dayMeetings) {
+// meetings into one positioned list for the hour grid. Meetings for courses
+// whose semester has already ended by `dayKey` are dropped; assignments are
+// never filtered by semester.
+function buildDayItems(dayAssignments, dayMeetings, dayKey) {
   const assignmentItems = dayAssignments.map((assignment) => {
     const due = parseWallClockDate(assignment.due_at);
     const start = due.getHours() * 60 + due.getMinutes();
@@ -63,14 +82,19 @@ function buildDayItems(dayAssignments, dayMeetings) {
     };
   });
 
-  const meetingItems = dayMeetings.map(({ course, meeting }) => ({
-    kind: "meeting",
-    key: `meeting-${course.id}`,
-    start: timeToMinutes(meeting.start_time),
-    end: timeToMinutes(meeting.end_time),
-    course,
-    meeting,
-  }));
+  const meetingItems = dayMeetings
+    .filter(({ course }) => {
+      const endDate = course.semester?.end_date;
+      return !endDate || dayKey <= endDate;
+    })
+    .map(({ course, meeting }) => ({
+      kind: "meeting",
+      key: `meeting-${course.id}`,
+      start: timeToMinutes(meeting.start_time),
+      end: timeToMinutes(meeting.end_time),
+      course,
+      meeting,
+    }));
 
   return layoutDayItems([...assignmentItems, ...meetingItems]);
 }
@@ -127,7 +151,7 @@ export function DayHourGrid({
           const key = formatDateKey(day);
           const dayAssignments = assignmentsByDay[key] || [];
           const dayMeetings = courseMeetingsByDay[getDayOfWeekValue(day)] || [];
-          const items = buildDayItems(dayAssignments, dayMeetings);
+          const items = buildDayItems(dayAssignments, dayMeetings, key);
           const isToday = key === todayKey;
 
           return (
