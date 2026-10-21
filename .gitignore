@@ -33,3 +33,6 @@ minio-image.tar
 #Backups folder
 backups/
 backend/venv/
+
+#Production backup snapshots (contain data and .env secrets)
+backups-prod/*/
