@@ -34,6 +34,7 @@ import { EditCourseDialog } from "@/components/courses/edit-course-dialog";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { DEFAULT_COURSE_COLOR, coursePageTintStyle } from "@/lib/colors";
+import { CourseProgress } from "@/components/courses/course-progress";
 import { formatCourseSchedule } from "@/lib/course-schedule";
 import { ClockIcon } from "lucide-react";
 import { useColorIntensity } from "@/components/providers/color-intensity-provider";
@@ -519,6 +520,8 @@ const sortedAssignments = [...assignments].sort((a, b) => {
               {course.description}
             </p>
           )}
+
+          <CourseProgress assignments={assignments} color={courseColor} />
         </div>
 
         {grade?.overall_percent != null && (
