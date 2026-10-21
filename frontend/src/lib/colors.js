@@ -1,4 +1,6 @@
 export const DEFAULT_COURSE_COLOR = "#3b82f6";
+// Default accent for personal calendar events (no course attached).
+export const DEFAULT_EVENT_COLOR = "#8b5cf6";
 
 export function hexToRgba(hex, alpha) {
   const match = /^#?([0-9a-f]{6})$/i.exec(hex || "");

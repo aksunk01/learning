@@ -8,10 +8,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { PlusIcon, BookOpenIcon, ListChecksIcon, UploadIcon } from "lucide-react";
+import { PlusIcon, BookOpenIcon, ListChecksIcon, UploadIcon, CalendarPlusIcon } from "lucide-react";
 import { CreateCourseDialog } from "@/components/courses/create-course-dialog";
 import { CreateAssignmentDialog } from "@/components/assignments/create-assignment-dialog";
 import { UploadCourseMaterialDialog } from "@/components/courses/upload-course-material-dialog";
+import { CreateEventDialog } from "@/components/calendar/create-event-dialog";
 
 // Unified "Add" entry point for creating courses/assignments and uploading
 // documents from pages that aren't scoped to a single course (dashboard,
@@ -23,6 +24,7 @@ export function AddMenu({
   onCourseCreated,
   onAssignmentCreated,
   onMaterialUploaded,
+  onEventCreated,
 }) {
   const [activeDialog, setActiveDialog] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -68,6 +70,10 @@ export function AddMenu({
             <UploadIcon className="mr-2 h-4 w-4" />
             Upload Document
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setActiveDialog("event")}>
+            <CalendarPlusIcon className="mr-2 h-4 w-4" />
+            Add Event
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -103,6 +109,18 @@ export function AddMenu({
         onMaterialUploaded={(material) => {
           setActiveDialog(null);
           onMaterialUploaded?.(material);
+        }}
+      />
+
+      <CreateEventDialog
+        token={token}
+        defaultCourseId={courseId}
+        trigger={null}
+        open={activeDialog === "event"}
+        onOpenChange={(open) => setActiveDialog(open ? "event" : null)}
+        onEventCreated={(event) => {
+          setActiveDialog(null);
+          onEventCreated?.(event);
         }}
       />
     </>

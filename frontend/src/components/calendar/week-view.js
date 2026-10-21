@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { DEFAULT_COURSE_COLOR, hexToRgba, courseAccentColor } from "@/lib/colors";
+import { DEFAULT_COURSE_COLOR, DEFAULT_EVENT_COLOR, hexToRgba, courseAccentColor } from "@/lib/colors";
 import { formatDateKey, parseWallClockDate } from "@/lib/date-helpers";
 import { DayHourGrid, GUTTER_WIDTH_CLASS } from "@/components/calendar/day-hour-grid";
 
@@ -17,11 +17,13 @@ export function WeekView({
   gridDays,
   assignmentsByDay,
   courseMeetingsByDay = {},
+  eventsByDay = {},
   coursesById,
   intensityFactor,
   todayKey,
   onAssignmentClick,
   onCourseClick,
+  onEventClick,
 }) {
   const [activeDayKey, setActiveDayKey] = useState(null);
 
@@ -38,7 +40,10 @@ export function WeekView({
           const key = formatDateKey(day);
           const isToday = key === todayKey;
           const dayAssignments = assignmentsByDay[key] || [];
+          const dayEvents = eventsByDay[key] || [];
+          const allDayEvents = dayEvents.filter((event) => event.all_day);
           const hasAssignments = dayAssignments.length > 0;
+          const hasItems = hasAssignments || dayEvents.length > 0;
           const hasExam = dayAssignments.some((assignment) =>
             /exam|test/i.test(assignment.assignment_type || "")
           );
@@ -48,15 +53,15 @@ export function WeekView({
               key={key}
               className={`relative flex-1 min-w-0 border-l p-2 transition-colors ${
                 isToday ? "bg-primary/5" : ""
-              } ${hasAssignments ? "cursor-pointer hover:bg-muted/50" : ""} ${
+              } ${hasItems ? "cursor-pointer hover:bg-muted/50" : ""} ${
                 activeDayKey === key ? "z-20" : ""
               }`}
-              onMouseEnter={() => hasAssignments && setActiveDayKey(key)}
+              onMouseEnter={() => hasItems && setActiveDayKey(key)}
               onMouseLeave={() =>
                 setActiveDayKey((current) => (current === key ? null : current))
               }
               onClick={() =>
-                hasAssignments &&
+                hasItems &&
                 setActiveDayKey((current) => (current === key ? null : key))
               }
             >
@@ -72,7 +77,7 @@ export function WeekView({
                 )}
               </div>
 
-              {hasAssignments && (
+              {(hasAssignments || allDayEvents.length > 0) && (
                 <div className="mt-1 flex flex-col gap-0.5">
                   {dayAssignments.slice(0, MAX_VISIBLE_SUMMARY).map((assignment) => {
                     const courseColor =
@@ -99,9 +104,31 @@ export function WeekView({
                       </span>
                     );
                   })}
-                  {dayAssignments.length > MAX_VISIBLE_SUMMARY && (
+                  {allDayEvents
+                    .slice(0, Math.max(0, MAX_VISIBLE_SUMMARY - dayAssignments.length))
+                    .map((event) => {
+                      const eventColor =
+                        event.color ||
+                        (event.course_id && coursesById[event.course_id]?.color) ||
+                        DEFAULT_EVENT_COLOR;
+
+                      return (
+                        <span
+                          key={event.id}
+                          className="text-[10px] sm:text-xs truncate px-1 rounded border border-dashed"
+                          style={{
+                            backgroundColor: hexToRgba(eventColor, 0.15 * intensityFactor),
+                            color: eventColor,
+                            borderColor: hexToRgba(eventColor, 0.4 * intensityFactor),
+                          }}
+                        >
+                          {event.title}
+                        </span>
+                      );
+                    })}
+                  {dayAssignments.length + allDayEvents.length > MAX_VISIBLE_SUMMARY && (
                     <span className="text-[10px] sm:text-xs text-muted-foreground">
-                      +{dayAssignments.length - MAX_VISIBLE_SUMMARY} more
+                      +{dayAssignments.length + allDayEvents.length - MAX_VISIBLE_SUMMARY} more
                     </span>
                   )}
                 </div>
@@ -168,6 +195,50 @@ export function WeekView({
                             </div>
                           );
                         })}
+
+                        {dayEvents.map((event) => {
+                          const eventColor =
+                            event.color ||
+                            (event.course_id && coursesById[event.course_id]?.color) ||
+                            DEFAULT_EVENT_COLOR;
+
+                          return (
+                            <div
+                              key={event.id}
+                              className="flex items-center justify-between gap-2 p-2 rounded border border-dashed cursor-pointer hover:bg-muted/50 transition-colors"
+                              style={{
+                                borderLeftWidth: "3px",
+                                borderLeftStyle: "solid",
+                                borderLeftColor: courseAccentColor(eventColor, intensityFactor),
+                              }}
+                              onClick={() => onEventClick(event)}
+                            >
+                              <div className="min-w-0 flex items-start gap-2">
+                                <span
+                                  className="h-2 w-2 rounded-full shrink-0 mt-1"
+                                  style={{ backgroundColor: courseAccentColor(eventColor, intensityFactor) }}
+                                />
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium truncate">{event.title}</p>
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    {event.course_id
+                                      ? coursesById[event.course_id]?.name
+                                      : "Personal event"}
+                                    {event.location ? ` · ${event.location}` : ""}
+                                  </p>
+                                </div>
+                              </div>
+                              <Badge variant="outline" className="shrink-0 text-xs">
+                                {event.all_day
+                                  ? "All day"
+                                  : new Date(event.start_at).toLocaleTimeString("en-US", {
+                                      hour: "numeric",
+                                      minute: "2-digit",
+                                    })}
+                              </Badge>
+                            </div>
+                          );
+                        })}
                       </div>
                     </CardContent>
                   </Card>
@@ -183,11 +254,13 @@ export function WeekView({
         days={gridDays}
         assignmentsByDay={assignmentsByDay}
         courseMeetingsByDay={courseMeetingsByDay}
+        eventsByDay={eventsByDay}
         coursesById={coursesById}
         intensityFactor={intensityFactor}
         todayKey={todayKey}
         onAssignmentClick={onAssignmentClick}
         onCourseClick={onCourseClick}
+        onEventClick={onEventClick}
       />
     </div>
   );
