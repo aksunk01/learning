@@ -2,6 +2,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { DM_Sans } from 'next/font/google';
 import "./globals.css";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { ColorIntensityProvider } from "@/components/providers/color-intensity-provider";
+import { KanbanColumnsProvider } from "@/components/providers/kanban-columns-provider";
 import { AppDock } from "@/components/navigation/app-dock";
 
 const geistSans = Geist({
@@ -21,7 +23,7 @@ const dmSans = DM_Sans({
 });
 
 export const metadata = {
-  title: "Academic Assistant",
+  title: "Dueboard",
   description: "By Abhiram Sunkara",
 };
 
@@ -33,16 +35,19 @@ export default function RootLayout({ children }) {
       className={`${geistSans.variable} ${geistMono.variable} ${dmSans.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col md:flex-row">
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
           enableSystem
           disableTransitionOnChange
         >
-          <AppDock />
-          {children}
-
+          <ColorIntensityProvider>
+            <KanbanColumnsProvider>
+              <AppDock />
+              <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+            </KanbanColumnsProvider>
+          </ColorIntensityProvider>
         </ThemeProvider>
       </body>
     </html>

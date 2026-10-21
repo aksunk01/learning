@@ -1,13 +1,12 @@
 from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from datetime import datetime, timezone, timedelta
+from datetime import timedelta
 
 from collections import Counter
-from zoneinfo import ZoneInfo
 
 from app.api.auth import get_current_user
-from app.api.v1.assignments import query_overdue_assignments, query_upcoming_assignments, query_assignments_in_range, query_upcoming_assignment_count, query_upcoming_counts_by_course, query_completed_assignments
+from app.api.v1.assignments import query_overdue_assignments, query_upcoming_assignments, query_assignments_in_range, query_upcoming_assignment_count, query_upcoming_counts_by_course, query_completed_assignments, current_wall_clock_time
 from app.db.dependencies import get_db
 from app.models.user import User
 from app.models.assignment import Assignment
@@ -21,11 +20,9 @@ router = APIRouter(
 )
 
 
-EASTERN_TIME = ZoneInfo("America/New_York")
-
 def build_daily_workload(assignments):
     counts = Counter(
-        assignment.due_at.astimezone(EASTERN_TIME).date()
+        assignment.due_at.date()
         for assignment in assignments
         if assignment.due_at is not None and not assignment.is_completed
     )
@@ -40,7 +37,7 @@ def build_daily_workload(assignments):
     ]
 
 def build_course_summaries(db: Session, user_id: UUID, semester_id: UUID | None = None):
-    now = datetime.now(timezone.utc)
+    now = current_wall_clock_time()
 
     courses_query = (
         db.query(Course)
@@ -107,7 +104,7 @@ def build_course_summaries(db: Session, user_id: UUID, semester_id: UUID | None 
 
 @router.get("", response_model=DashboardResponse)
 def get_dashboard(semester_id: UUID | None = Query(default=None), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    now = datetime.now(timezone.utc)
+    now = current_wall_clock_time()
     seven_days_from_now = now + timedelta(days=7)
 
     upcoming = query_upcoming_assignments(

@@ -42,6 +42,7 @@ class Semester(Base):
     user = relationship(
         "User",
         back_populates="semesters",
+        foreign_keys=[user_id],
     )
 
     courses = relationship(

@@ -1,24 +1,96 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { SemesterHeading } from "@/components/semesters/semester-heading";
-import { CalendarIcon, ClockIcon, TargetIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { SemesterProgress } from "@/components/semester-progress";
+import { ListChecksIcon } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchDashboard } from "@/lib/dashboard-api";
+import { fetchSemesters } from "@/lib/semesters-api";
+import { fetchCourses } from "@/lib/courses-api";
+import { fetchAssignmentsInRange } from "@/lib/assignments-api";
+import { getCurrentUser, updateProfile } from "@/lib/auth-api";
 import { useRouter } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { formatWallClockDateShort } from "@/lib/date-helpers";
+import { formatDateKey, parseWallClockDate } from "@/lib/date-helpers";
+import { buildCourseMeetingsByDay } from "@/lib/course-schedule";
+import { PlannerPanel } from "@/components/planner/planner-panel";
+import { DEFAULT_COURSE_COLOR } from "@/lib/colors";
+import { StandardDashboard } from "@/components/dashboard/standard-dashboard";
+import { CompactDashboard } from "@/components/dashboard/compact-dashboard";
+import { BoardDashboard } from "@/components/dashboard/board-dashboard";
+import { KanbanDashboard } from "@/components/dashboard/kanban-dashboard";
+import { AddMenu } from "@/components/navigation/add-menu";
+import { DayScheduleSidebar } from "@/components/dashboard/day-schedule-sidebar";
+import { useColorIntensity } from "@/components/providers/color-intensity-provider";
+
+const DASHBOARD_LAYOUTS = {
+  standard: StandardDashboard,
+  compact: CompactDashboard,
+  board: BoardDashboard,
+  kanban: KanbanDashboard,
+};
+
+function PlannerToggleButton({ onClick }) {
+  return (
+    <Button variant="ghost" size="icon" aria-label="Planner" onClick={onClick}>
+      <ListChecksIcon className="h-5 w-5" />
+    </Button>
+  );
+}
 
 export default function DashboardPage() {
+  const { intensityFactor } = useColorIntensity();
   const [dashboardData, setDashboardData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedSemesterId, setSelectedSemesterId] = useState(null);
+  const [semesters, setSemesters] = useState([]);
   const [showOverdue, setShowOverdue] = useState(false);
   const [token, setToken] = useState(null);
+  const [plannerOpen, setPlannerOpen] = useState(false);
+  const [coursesById, setCoursesById] = useState({});
+  const [courses, setCourses] = useState([]);
+  const [todayAssignments, setTodayAssignments] = useState([]);
+  const [layout, setLayout] = useState("standard");
+  const [favoriteSemesterId, setFavoriteSemesterId] = useState(null);
+  const [userLoaded, setUserLoaded] = useState(false);
+  const [mainColumnHeight, setMainColumnHeight] = useState(null);
+  const mainColumnObserverRef = useRef(null);
   const router = useRouter();
+
+  // Measure the main dashboard column so the day-schedule sidebar can match
+  // its height exactly (a CSS-only percentage-height chain through nested
+  // flex/scroll containers isn't reliable here). A callback ref is used
+  // instead of useRef+useEffect because this element only exists behind the
+  // isLoading/error/!dashboardData early returns below - an effect with an
+  // empty dep array would run on the very first (loading) render, find
+  // nothing attached yet, and never fire again.
+  const mainColumnRef = useCallback((node) => {
+    mainColumnObserverRef.current?.disconnect();
+    mainColumnObserverRef.current = null;
+
+    if (!node || typeof ResizeObserver === "undefined") return;
+
+    // Measure to the bottom edge of the last child rather than the
+    // container's own content-box height: as a flex item, this div
+    // establishes a block-formatting context, so a trailing margin on its
+    // last child (e.g. the dashboard layout's final section) gets counted
+    // in its content height instead of collapsing through as it normally
+    // would - inflating the measurement past where the content visually ends.
+    const measure = () => {
+      const lastChild = node.lastElementChild;
+      const height = lastChild
+        ? lastChild.getBoundingClientRect().bottom - node.getBoundingClientRect().top
+        : node.getBoundingClientRect().height;
+      setMainColumnHeight(height);
+    };
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    mainColumnObserverRef.current = observer;
+  }, []);
 
   useEffect(() => {
     const storedToken = localStorage.getItem("access_token");
@@ -31,11 +103,9 @@ export default function DashboardPage() {
     Promise.resolve().then(() => setToken(storedToken));
   }, [router]);
 
-  useEffect(() => {
-    if (!token) return;
-
-    const fetchDashboardData = async () => {
-      setIsLoading(true);
+  const loadDashboardData = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!silent) setIsLoading(true);
 
       try {
         const data = await fetchDashboard(token, selectedSemesterId);
@@ -49,12 +119,116 @@ export default function DashboardPage() {
           setError("Failed to load dashboard data");
         }
       } finally {
-        setIsLoading(false);
+        if (!silent) setIsLoading(false);
       }
-    };
+    },
+    [router, token, selectedSemesterId]
+  );
 
-    fetchDashboardData();
-  }, [router, token, selectedSemesterId]);
+  useEffect(() => {
+    if (!token || !userLoaded) return;
+    loadDashboardData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, selectedSemesterId, userLoaded]);
+
+  useEffect(() => {
+    if (!token) return;
+
+    let isCancelled = false;
+
+    fetchSemesters(token)
+      .then((data) => {
+        if (!isCancelled) setSemesters(data);
+      })
+      .catch(() => {
+        // Progress bar just stays hidden if this fails
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+
+    let isCancelled = false;
+
+    fetchCourses(token)
+      .then((data) => {
+        if (isCancelled) return;
+        setCourses(data);
+        setCoursesById(
+          Object.fromEntries(
+            data.map((course) => [
+              course.id,
+              { name: course.name, color: course.color || DEFAULT_COURSE_COLOR },
+            ])
+          )
+        );
+      })
+      .catch(() => {
+        // Glow just stays off if this fails
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+
+    let isCancelled = false;
+    const todayKey = formatDateKey(new Date());
+
+    fetchAssignmentsInRange(todayKey, todayKey, token, { includeCompleted: true })
+      .then((data) => {
+        if (!isCancelled) setTodayAssignments(data);
+      })
+      .catch(() => {
+        // Day schedule sidebar just stays empty if this fails
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+
+    let isCancelled = false;
+
+    getCurrentUser(token)
+      .then((user) => {
+        if (isCancelled) return;
+        if (user?.dashboard_layout) setLayout(user.dashboard_layout);
+        setFavoriteSemesterId(user?.favorite_semester_id ?? null);
+        setSelectedSemesterId((current) => current ?? user?.favorite_semester_id ?? null);
+      })
+      .catch(() => {
+        // Layout/favorite preference just stays at the default if this fails
+      })
+      .finally(() => {
+        if (!isCancelled) setUserLoaded(true);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [token]);
+
+  const handleToggleFavorite = async (semesterId) => {
+    if (!token) return;
+
+    try {
+      const updated = await updateProfile(token, { favorite_semester_id: semesterId });
+      setFavoriteSemesterId(updated.favorite_semester_id ?? null);
+    } catch {
+      // Favorite star just doesn't update if this fails
+    }
+  };
 
   // Helper function to get course name by ID
   const getCourseName = (courseId) => {
@@ -63,9 +237,33 @@ export default function DashboardPage() {
     return summary ? summary.course_name : null;
   };
 
+  const getCourseColor = (courseId) => coursesById[courseId]?.color || DEFAULT_COURSE_COLOR;
+
+  const todayAssignmentsByDay = useMemo(() => {
+    const todayKey = formatDateKey(new Date());
+    const map = {};
+
+    for (const assignment of todayAssignments) {
+      if (!assignment.due_at) continue;
+      (map[formatDateKey(parseWallClockDate(assignment.due_at))] ||= []).push(assignment);
+    }
+
+    if (map[todayKey]) {
+      map[todayKey].sort((a, b) => parseWallClockDate(a.due_at) - parseWallClockDate(b.due_at));
+    }
+
+    return map;
+  }, [todayAssignments]);
+
+  const courseMeetingsByDay = useMemo(() => buildCourseMeetingsByDay(courses), [courses]);
+
   // Handle navigation to assignment detail page
   const handleAssignmentClick = (assignmentId) => {
     router.push(`/assignments/${assignmentId}?from=dashboard`);
+  };
+
+  const handleCourseClick = (courseId) => {
+    router.push(`/courses/${courseId}`);
   };
 
   // Handle navigation to exam detail page
@@ -88,7 +286,9 @@ export default function DashboardPage() {
               Your academic overview and upcoming work
             </p>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <PlannerToggleButton onClick={() => setPlannerOpen(true)} />
+          </div>
         </div>
 
         {/* Summary Metrics Skeleton */}
@@ -99,7 +299,7 @@ export default function DashboardPage() {
                 <CardTitle className="text-sm font-medium">
                   <Skeleton className="h-4 w-20" />
                 </CardTitle>
-                <Skeleton className="h-4 w-4" />
+                <Skeleton className="h-9 w-9 rounded-full" />
               </CardHeader>
               <CardContent>
                 <Skeleton className="h-8 w-12 mb-1" />
@@ -196,26 +396,7 @@ export default function DashboardPage() {
             </div>
           </CardContent>
         </Card>
-
-        {/* Workload Skeleton */}
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              <Skeleton className="h-6 w-40" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-end justify-between h-32 gap-2">
-              {[1, 2, 3, 4, 5, 6, 7].map((day) => (
-                <div key={day} className="flex flex-col items-center flex-1">
-                  <Skeleton className="h-3 w-4 mb-1" />
-                  <div className="w-full bg-secondary rounded-t-md h-20"></div>
-                  <Skeleton className="h-3 w-4 mt-1" />
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <PlannerPanel open={plannerOpen} onOpenChange={setPlannerOpen} token={token} />
       </div>
     );
   }
@@ -230,9 +411,12 @@ export default function DashboardPage() {
               Your academic overview and upcoming work
             </p>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <PlannerToggleButton onClick={() => setPlannerOpen(true)} />
+          </div>
         </div>
         <div className="text-destructive">{error}</div>
+        <PlannerPanel open={plannerOpen} onOpenChange={setPlannerOpen} token={token} />
       </div>
     );
   }
@@ -241,16 +425,25 @@ export default function DashboardPage() {
     return null;
   }
 
+  const now = new Date();
+  const activeSemester = selectedSemesterId
+    ? semesters.find((semester) => semester.id === selectedSemesterId)
+    : semesters.find((semester) => {
+        if (!semester.start_date || !semester.end_date) return false;
+        return now >= parseWallClockDate(semester.start_date) && now <= parseWallClockDate(semester.end_date);
+      });
+
   const {
     upcoming,
     overdue,
     upcoming_exams,
     upcoming_projects,
     counts,
-    workload_next_7_days,
     course_summaries,
     completed
   } = dashboardData;
+
+  const DashboardLayout = DASHBOARD_LAYOUTS[layout] || StandardDashboard;
 
   return (
     <div className="flex-1 p-6 pb-24 md:pb-6">
@@ -260,355 +453,70 @@ export default function DashboardPage() {
             token={token}
             value={selectedSemesterId}
             onChange={setSelectedSemesterId}
+            onSemesterUpdated={(updated) =>
+              setSemesters((current) =>
+                current.map((semester) => (semester.id === updated.id ? updated : semester))
+              )
+            }
+            favoriteSemesterId={favoriteSemesterId}
+            onToggleFavorite={handleToggleFavorite}
           />
           <p className="text-muted-foreground mt-2">
             Your academic overview and upcoming work
           </p>
         </div>
-        <ThemeToggle />
-      </div>
-
-      {/* Summary Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Upcoming</CardTitle>
-            <TargetIcon className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{counts.upcoming}</div>
-            <p className="text-xs text-muted-foreground mt-1">assignments due soon</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Due Soon</CardTitle>
-            <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{counts.due_next_7_days}</div>
-            <p className="text-xs text-muted-foreground mt-1">assignments due this week</p>
-          </CardContent>
-        </Card>
-
-        <Card
-          role="button"
-          tabIndex={0}
-          aria-expanded={showOverdue}
-          onClick={() => setShowOverdue((current) => !current)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              setShowOverdue((current) => !current);
-            }
-          }}
-          className="cursor-pointer hover:bg-muted/50 transition-colors"
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Overdue</CardTitle>
-            <ClockIcon className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">{counts.overdue}</div>
-            <p className="text-xs text-muted-foreground mt-1">assignments past due date</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {showOverdue && (
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Overdue Assignments</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4 max-h-[320px] overflow-y-auto">
-              {overdue && overdue.length > 0 ? (
-                overdue.map((assignment) => {
-                  const courseName = getCourseName(assignment.course_id);
-                  return (
-                    <div
-                      key={assignment.id}
-                      className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => handleAssignmentClick(assignment.id)}
-                    >
-                      <div>
-                        <h3 className="font-medium">{assignment.title}</h3>
-                        {courseName && assignment.assignment_type ? (
-                          <p className="text-sm text-muted-foreground">
-                            {courseName} · {assignment.assignment_type}
-                          </p>
-                        ) : courseName ? (
-                          <p className="text-sm text-muted-foreground">
-                            {courseName}
-                          </p>
-                        ) : assignment.assignment_type ? (
-                          <p className="text-sm text-muted-foreground">
-                            {assignment.assignment_type}
-                          </p>
-                        ) : null}
-                      </div>
-                      <Badge variant="destructive">
-                        {assignment.due_at ? formatWallClockDateShort(assignment.due_at) : 'No due date'}
-                      </Badge>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="text-center py-4 text-muted-foreground">
-                  No overdue assignments
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Upcoming Work</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4 max-h-[320px] overflow-y-auto">
-              {upcoming && upcoming.length > 0 ? (
-                upcoming.map((assignment) => {
-                  const courseName = getCourseName(assignment.course_id);
-                  return (
-                    <div 
-                      key={assignment.id} 
-                      className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => handleAssignmentClick(assignment.id)}
-                    >
-                      <div>
-                        <h3 className="font-medium">{assignment.title}</h3>
-                        {courseName && assignment.assignment_type ? (
-                          <p className="text-sm text-muted-foreground">
-                            {courseName} · {assignment.assignment_type}
-                          </p>
-                        ) : courseName ? (
-                          <p className="text-sm text-muted-foreground">
-                            {courseName}
-                          </p>
-                        ) : assignment.assignment_type ? (
-                          <p className="text-sm text-muted-foreground">
-                            {assignment.assignment_type}
-                          </p>
-                        ) : null}
-                      </div>
-                      <Badge variant="secondary">
-                        {assignment.due_at ? formatWallClockDateShort(assignment.due_at) : 'No due date'}
-                      </Badge>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="text-center py-4 text-muted-foreground">
-                  No upcoming assignments
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Upcoming Exams</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4 max-h-[320px] overflow-y-auto">
-              {upcoming_exams && upcoming_exams.length > 0 ? (
-                upcoming_exams.map((exam) => {
-                  const courseName = getCourseName(exam.course_id);
-                  return (
-                    <div 
-                      key={exam.id} 
-                      className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => handleExamClick(exam.id)}
-                    >
-                      <div>
-                        <h3 className="font-medium">{exam.title}</h3>
-                        {courseName && exam.assignment_type ? (
-                          <p className="text-sm text-muted-foreground">
-                            {courseName} · {exam.assignment_type}
-                          </p>
-                        ) : courseName ? (
-                          <p className="text-sm text-muted-foreground">
-                            {courseName}
-                          </p>
-                        ) : exam.assignment_type ? (
-                          <p className="text-sm text-muted-foreground">
-                            {exam.assignment_type}
-                          </p>
-                        ) : null}
-                      </div>
-                      <Badge variant="secondary">
-                        {exam.due_at ? formatWallClockDateShort(exam.due_at) : 'No date'}
-                      </Badge>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="text-center py-4 text-muted-foreground">
-                  No upcoming exams
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Upcoming Projects</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4 max-h-[320px] overflow-y-auto">
-              {upcoming_projects && upcoming_projects.length > 0 ? (
-                upcoming_projects.map((project) => {
-                  const courseName = getCourseName(project.course_id);
-                  return (
-                    <div 
-                      key={project.id} 
-                      className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => handleProjectClick(project.id)}
-                    >
-                      <div>
-                        <h3 className="font-medium">{project.title}</h3>
-                        {courseName && project.assignment_type ? (
-                          <p className="text-sm text-muted-foreground">
-                            {courseName} · {project.assignment_type}
-                          </p>
-                        ) : courseName ? (
-                          <p className="text-sm text-muted-foreground">
-                            {courseName}
-                          </p>
-                        ) : project.assignment_type ? (
-                          <p className="text-sm text-muted-foreground">
-                            {project.assignment_type}
-                          </p>
-                        ) : null}
-                      </div>
-                      <Badge variant="secondary">
-                        {project.due_at ? formatWallClockDateShort(project.due_at) : 'No date'}
-                      </Badge>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="text-center py-4 text-muted-foreground">
-                  No upcoming projects
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Assignments Completed and Course Overview */}
-      {completed && completed.length > 0 && course_summaries && course_summaries.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <Card>
-            <CardHeader>
-              <CardTitle>Assignments Completed</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4 max-h-[320px] overflow-y-auto">
-                {completed.map((assignment) => {
-                  const courseName = getCourseName(assignment.course_id);
-                  return (
-                    <div key={assignment.id} className="flex items-center justify-between p-3 border rounded-lg bg-muted/50">
-                      <div>
-                        <h3 className="font-medium line-through">{assignment.title}</h3>
-                        {courseName && assignment.assignment_type ? (
-                          <p className="text-sm text-muted-foreground">
-                            {courseName} · {assignment.assignment_type}
-                          </p>
-                        ) : courseName ? (
-                          <p className="text-sm text-muted-foreground">
-                            {courseName}
-                          </p>
-                        ) : assignment.assignment_type ? (
-                          <p className="text-sm text-muted-foreground">
-                            {assignment.assignment_type}
-                          </p>
-                        ) : null}
-                      </div>
-                      <div className="flex flex-col items-end">
-                        {assignment.completed_at && (
-                          <span className="text-xs text-muted-foreground">
-                            Completed: {new Date(assignment.completed_at).toLocaleDateString()}
-                          </span>
-                        )}
-                        {assignment.due_at && (
-                          <Badge variant="secondary" className="mt-1">
-                            Due: {formatWallClockDateShort(assignment.due_at)}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Course Overview</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="max-h-[320px] overflow-y-auto">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {course_summaries.map((summary) => (
-                    <div key={summary.course_id} className="p-4 border rounded-lg">
-                      <h3 className="font-medium">{summary.course_name}</h3>
-                      <p className="text-sm text-muted-foreground mb-2">{summary.course_code}</p>
-                      {summary.semester && (
-                        <p className="text-xs text-muted-foreground mb-2">{summary.semester}</p>
-                      )}
-                      <div className="flex justify-between items-center">
-                        <Badge variant="secondary">{summary.upcoming_count} assignments</Badge>
-                        {summary.next_assignment && summary.next_assignment.due_at && (
-                          <span className="text-xs text-muted-foreground">Due: {formatWallClockDateShort(summary.next_assignment.due_at)}</span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="flex items-center gap-2">
+          <AddMenu
+            token={token}
+            onCourseCreated={() => loadDashboardData({ silent: true })}
+            onAssignmentCreated={() => loadDashboardData({ silent: true })}
+            onMaterialUploaded={() => loadDashboardData({ silent: true })}
+          />
+          <PlannerToggleButton onClick={() => setPlannerOpen(true)} />
         </div>
-      )}
+      </div>
 
-      {/* Workload */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Workload Next 7 Days</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {workload_next_7_days && workload_next_7_days.length > 0 ? (
-            <div className="flex items-end justify-between h-32 gap-2">
-              {workload_next_7_days.map((dayData) => (
-                <div key={dayData.date} className="flex flex-col items-center flex-1">
-                  <div className="text-xs text-muted-foreground mb-1">
-                    {new Date(dayData.date).toLocaleDateString('en-US', { weekday: 'short' })}
-                  </div>
-                  <div 
-                    className="w-full bg-secondary rounded-t-md"
-                    style={{ height: `${Math.max(20, dayData.count * 10)}%` }}
-                  ></div>
-                  <div className="text-xs mt-1">{dayData.count}</div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-4 text-muted-foreground">
-              No workload data available
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <SemesterProgress semester={activeSemester} />
+
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+        <div ref={mainColumnRef} className="flex-1 min-w-0">
+          <DashboardLayout
+            counts={counts}
+            upcoming={upcoming}
+            overdue={overdue}
+            upcoming_exams={upcoming_exams}
+            upcoming_projects={upcoming_projects}
+            completed={completed}
+            course_summaries={course_summaries}
+            showOverdue={showOverdue}
+            setShowOverdue={setShowOverdue}
+            getCourseName={getCourseName}
+            getCourseColor={getCourseColor}
+            onAssignmentClick={handleAssignmentClick}
+            onExamClick={handleExamClick}
+            onProjectClick={handleProjectClick}
+            onCourseClick={handleCourseClick}
+            token={token}
+            onDataChanged={() => loadDashboardData({ silent: true })}
+          />
+        </div>
+
+        <div
+          className="w-full lg:w-[320px] shrink-0"
+          style={mainColumnHeight ? { "--sidebar-height": `${mainColumnHeight}px` } : undefined}
+        >
+          <DayScheduleSidebar
+            assignmentsByDay={todayAssignmentsByDay}
+            courseMeetingsByDay={courseMeetingsByDay}
+            coursesById={coursesById}
+            intensityFactor={intensityFactor}
+            onAssignmentClick={handleAssignmentClick}
+            onCourseClick={handleCourseClick}
+          />
+        </div>
+      </div>
+
+      <PlannerPanel open={plannerOpen} onOpenChange={setPlannerOpen} token={token} />
     </div>
   );
 }

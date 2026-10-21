@@ -8,52 +8,171 @@ import { useEffect, useRef, useState } from "react";
 import { fetchCourses } from "@/lib/courses-api";
 import { useRouter } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
-import { askCourseQuestion } from "@/lib/assistant-api";
-import { ArrowUp } from "lucide-react";
+import { askQuestionStream } from "@/lib/assistant-api";
+import { fetchConversation, fetchConversations, deleteConversation } from "@/lib/conversations-api";
+import { ArrowUp, MessageSquarePlusIcon, Square, Trash2Icon } from "lucide-react";
+
+const AUTO_FOCUS_VALUE = "auto";
 
 export default function AssistantPage() {
   const [courses, setCourses] = useState([]);
-  const [selectedCourseId, setSelectedCourseId] = useState("");
+  const [selectedCourseId, setSelectedCourseId] = useState(AUTO_FOCUS_VALUE);
   const [isCoursesLoading, setIsCoursesLoading] = useState(true);
   const [coursesError, setCoursesError] = useState("");
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [chatError, setChatError] = useState("");
-  const messagesEndRef = useRef(null);
+  const [conversations, setConversations] = useState([]);
+  const [selectedConversationId, setSelectedConversationId] = useState(null);
+  const [isConversationsLoading, setIsConversationsLoading] = useState(true);
+  const chatScrollRef = useRef(null);
+  const shouldAutoScrollRef = useRef(true);
+  const abortControllerRef = useRef(null);
   const router = useRouter();
 
+  const getCourseLabel = (courseId) => {
+    const course = courses.find((c) => c.id === courseId);
+    if (!course) return null;
+    return course.code ? `${course.code} — ${course.name}` : course.name;
+  };
+
+  const handleStopGenerating = () => {
+    abortControllerRef.current?.abort();
+  };
+
+  const handleChatScroll = () => {
+    const el = chatScrollRef.current;
+    if (!el) return;
+
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    shouldAutoScrollRef.current = distanceFromBottom < 24;
+  };
+
+  const refreshConversations = async (token) => {
+    try {
+      const data = await fetchConversations(token);
+      setConversations(data);
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        localStorage.removeItem("access_token");
+        router.push("/login");
+      }
+    }
+  };
+
+  const handleNewConversation = () => {
+    shouldAutoScrollRef.current = true;
+    setSelectedConversationId(null);
+    setMessages([]);
+    setChatError("");
+  };
+
+  const handleSelectConversation = async (conversationId) => {
+    if (conversationId === selectedConversationId) return;
+
+    const token = localStorage.getItem("access_token");
+    setChatError("");
+
+    try {
+      const conversation = await fetchConversation(conversationId, token);
+      shouldAutoScrollRef.current = true;
+      setSelectedConversationId(conversation.id);
+      setSelectedCourseId(conversation.course_id || AUTO_FOCUS_VALUE);
+      setMessages(
+        conversation.messages.map((message) => ({
+          id: message.id,
+          role: message.role,
+          content: message.content,
+          sources: message.sources || []
+        }))
+      );
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        localStorage.removeItem("access_token");
+        router.push("/login");
+      } else {
+        setChatError("Failed to load conversation.");
+      }
+    }
+  };
+
+  const handleDeleteConversation = async (event, conversationId) => {
+    event.stopPropagation();
+
+    const token = localStorage.getItem("access_token");
+
+    try {
+      await deleteConversation(conversationId, token);
+      setConversations((prev) => prev.filter((c) => c.id !== conversationId));
+
+      if (conversationId === selectedConversationId) {
+        handleNewConversation();
+      }
+    } catch {
+      setChatError("Failed to delete conversation.");
+    }
+  };
+
   const handleSendMessage = async () => {
-    if (!selectedCourseId) return;
     if (!inputValue.trim()) return;
     if (isGenerating) return;
-    
+
     const trimmedInput = inputValue.trim();
-    
+    const courseId = selectedCourseId === AUTO_FOCUS_VALUE ? null : selectedCourseId;
+
     const newUserMessage = {
       id: Date.now().toString(),
       role: "user",
       content: trimmedInput
     };
-    
+
+    const assistantMessageId = `${Date.now()}-assistant`;
+
+    shouldAutoScrollRef.current = true;
     setMessages(prevMessages => [...prevMessages, newUserMessage]);
     setInputValue("");
     setIsGenerating(true);
     setChatError("");
-    
+
     const token = localStorage.getItem("access_token");
-    
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    const upsertAssistantMessage = (updates) => {
+      setMessages(prevMessages => {
+        const exists = prevMessages.some(message => message.id === assistantMessageId);
+
+        if (!exists) {
+          return [
+            ...prevMessages,
+            { id: assistantMessageId, role: "assistant", content: "", sources: [], courseId: null, ...updates }
+          ];
+        }
+
+        return prevMessages.map(message =>
+          message.id === assistantMessageId ? { ...message, ...updates } : message
+        );
+      });
+    };
+
     try {
-      const response = await askCourseQuestion(selectedCourseId, trimmedInput, token);
-      
-      const newAssistantMessage = {
-        id: `${Date.now()}-assistant`,
-        role: "assistant",
-        content: response.answer,
-        sources: response.sources || []
-      };
-      
-      setMessages(prevMessages => [...prevMessages, newAssistantMessage]);
+      const result = await askQuestionStream(trimmedInput, token, {
+        conversationId: selectedConversationId,
+        courseId,
+        signal: controller.signal,
+        onConversation: (conversationId) => {
+          setSelectedConversationId(conversationId);
+        },
+        onSources: (sources, usedCourseId) => upsertAssistantMessage({ sources, courseId: usedCourseId }),
+        onToken: (_delta, fullText) => upsertAssistantMessage({ content: fullText })
+      });
+
+      if (result?.aborted && !result.answer) {
+        upsertAssistantMessage({ content: "Response cancelled." });
+      }
+
+      refreshConversations(token);
     } catch (error) {
       if (error.status === 401 || error.status === 403) {
         localStorage.removeItem("access_token");
@@ -63,18 +182,26 @@ export default function AssistantPage() {
       }
     } finally {
       setIsGenerating(false);
+      abortControllerRef.current = null;
     }
   };
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({
-      behavior: "smooth"
-    });
+    if (!shouldAutoScrollRef.current) return;
+
+    // An instant jump rather than scrollIntoView({behavior: "smooth"}):
+    // streaming fires this on every token, and a smooth scroll re-triggered
+    // that often never finishes animating, so it fights (and wins against)
+    // any attempt to scroll away mid-stream regardless of the ref above.
+    const el = chatScrollRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
   }, [messages, isGenerating]);
 
   useEffect(() => {
     const token = localStorage.getItem("access_token");
-    
+
     if (!token) {
       // Redirect to login page if no token
       router.push("/login");
@@ -98,7 +225,24 @@ export default function AssistantPage() {
       }
     };
 
+    const loadConversationsData = async () => {
+      setIsConversationsLoading(true);
+
+      try {
+        const data = await fetchConversations(token);
+        setConversations(data);
+      } catch (err) {
+        if (err.status === 401 || err.status === 403) {
+          localStorage.removeItem("access_token");
+          router.push("/login");
+        }
+      } finally {
+        setIsConversationsLoading(false);
+      }
+    };
+
     fetchCoursesData();
+    loadConversationsData();
   }, [router]);
 
   const handleCourseChange = (value) => {
@@ -113,16 +257,76 @@ export default function AssistantPage() {
           <p className="text-muted-foreground">Ask questions about your course materials.</p>
         </div>
 
-        <div className="flex flex-col flex-1 min-h-0 gap-4">
+        <div className="flex flex-1 min-h-0 gap-4">
+          {/* Conversation history sidebar */}
+          <aside className="hidden md:flex md:w-64 shrink-0 flex-col gap-2 min-h-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-start gap-2"
+              onClick={handleNewConversation}
+            >
+              <MessageSquarePlusIcon className="h-4 w-4" />
+              New conversation
+            </Button>
+            <Card className="flex-1 min-h-0 overflow-y-auto py-2">
+              <CardContent className="p-2 space-y-1">
+                {isConversationsLoading ? (
+                  <div className="space-y-2 p-1">
+                    <Skeleton className="h-8 w-full" />
+                    <Skeleton className="h-8 w-full" />
+                    <Skeleton className="h-8 w-full" />
+                  </div>
+                ) : conversations.length > 0 ? (
+                  conversations.map((conversation) => (
+                    <div
+                      key={conversation.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => handleSelectConversation(conversation.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          handleSelectConversation(conversation.id);
+                        }
+                      }}
+                      className={`group flex items-center justify-between gap-1 rounded-md px-2 py-2 text-sm cursor-pointer transition-colors ${
+                        conversation.id === selectedConversationId
+                          ? "bg-muted font-medium"
+                          : "hover:bg-muted/50"
+                      }`}
+                    >
+                      <span className="truncate">{conversation.title || "New conversation"}</span>
+                      <button
+                        type="button"
+                        aria-label="Delete conversation"
+                        className="shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                        onClick={(event) => handleDeleteConversation(event, conversation.id)}
+                      >
+                        <Trash2Icon className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground px-2 py-2">No conversations yet</p>
+                )}
+              </CardContent>
+            </Card>
+          </aside>
+
           {/* Conversation area */}
           <div className="flex-1 flex flex-col min-h-0">
             <Card className="flex-1 flex flex-col min-h-0">
-              <CardContent className="flex-1 p-6 overflow-y-auto">
+              <CardContent
+                ref={chatScrollRef}
+                onScroll={handleChatScroll}
+                className="flex-1 p-6 overflow-y-auto"
+              >
                 {messages.length === 0 ? (
                   <div className="text-center max-w-md mx-auto">
                     <h2 className="text-xl font-semibold mb-2">Ask anything about your course materials</h2>
                     <p className="text-muted-foreground">
-                      Select a course and ask a question based on your uploaded materials.
+                      Ask a question and the right course will be detected automatically, or focus on a specific course below.
                     </p>
                   </div>
                 ) : (
@@ -139,18 +343,25 @@ export default function AssistantPage() {
                               : 'bg-muted'
                           }`}
                         >
-                          {message.content}
+                          {message.content || (message.role === "assistant" && isGenerating ? "Generating..." : "")}
+                          {message.role === "assistant" && message.courseId && getCourseLabel(message.courseId) && (
+                            <div className="mt-2">
+                              <span className="inline-block text-xs rounded-full bg-background/60 border px-2 py-0.5 text-muted-foreground">
+                                {getCourseLabel(message.courseId)}
+                              </span>
+                            </div>
+                          )}
                           {message.sources && message.sources.length > 0 && (
                             <div className="mt-3 pt-3 border-t border-border">
                               <p className="text-sm font-medium mb-1">Sources</p>
                               <ul className="text-xs space-y-1">
                                 {message.sources.map((source, index) => {
                                   const parts = [];
-                                  
+
                                   if (source.file_name) {
                                     parts.push(source.file_name);
                                   }
-                                  
+
                                   if (source.page_start || source.page_end) {
                                     if (source.page_start != null && source.page_end != null) {
                                       if (source.page_start === source.page_end) {
@@ -164,15 +375,15 @@ export default function AssistantPage() {
                                       parts.push(`Page ${source.page_end}`);
                                     }
                                   }
-                                  
+
                                   if (source.slide_number) {
                                     parts.push(`Slide ${source.slide_number}`);
                                   }
-                                  
+
                                   if (source.section) {
                                     parts.push(`Section ${source.section}`);
                                   }
-                                  
+
                                   return (
                                     <li key={index} className="text-muted-foreground">
                                       {parts.join(' · ')}
@@ -185,20 +396,19 @@ export default function AssistantPage() {
                         </div>
                       </div>
                     ))}
-                    {isGenerating && (
+                    {isGenerating && messages[messages.length - 1]?.role !== "assistant" && (
                       <div className="flex justify-start">
                         <div className="max-w-3xl p-4 rounded-lg bg-muted whitespace-pre-wrap">
                           Generating...
                         </div>
                       </div>
                     )}
-                    <div ref={messagesEndRef} />
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            {/* Composer with course selector */}
+            {/* Composer with course focus selector */}
             <div className="mt-4 rounded-2xl border bg-card shadow-sm p-3">
               <div className="flex flex-col gap-2">
                 <Textarea
@@ -206,7 +416,7 @@ export default function AssistantPage() {
                   onChange={(e) => setInputValue(e.target.value)}
                   placeholder="Ask a question about your course materials..."
                   className="min-h-[100px] border-0 bg-transparent shadow-none focus-visible:ring-0 resize-none w-full"
-                  disabled={!selectedCourseId || isGenerating}
+                  disabled={isGenerating}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && !event.shiftKey) {
                       event.preventDefault();
@@ -218,18 +428,19 @@ export default function AssistantPage() {
                   <p className="text-sm text-destructive">{chatError}</p>
                 )}
                 <div className="flex items-center justify-between gap-2">
-                  {/* Course selector */}
+                  {/* Course focus selector */}
                   <div className="flex-1">
                     {isCoursesLoading ? (
                       <Skeleton className="h-8 w-full" />
                     ) : coursesError ? (
                       <p className="text-sm text-destructive">{coursesError}</p>
-                    ) : courses && courses.length > 0 ? (
+                    ) : (
                       <Select value={selectedCourseId} onValueChange={handleCourseChange}>
                         <SelectTrigger className="h-8 w-auto max-w-[70%] rounded-md text-sm">
-                          <SelectValue placeholder="Select a course" />
+                          <SelectValue placeholder="Auto-detect" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value={AUTO_FOCUS_VALUE}>Auto-detect</SelectItem>
                           {courses.map((course) => (
                             <SelectItem key={course.id} value={course.id}>
                               {course.code ? `${course.code} — ${course.name}` : course.name}
@@ -237,21 +448,31 @@ export default function AssistantPage() {
                           ))}
                         </SelectContent>
                       </Select>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No courses available. Create a course and upload course material before asking questions.</p>
                     )}
                   </div>
 
-                  <Button 
-                    variant="default" 
-                    size="icon"
-                    className="h-8 w-8 rounded-full"
-                    disabled={!selectedCourseId || !inputValue.trim() || isGenerating}
-                    onClick={handleSendMessage}
-                    aria-label="Send message"
-                  >
-                    <ArrowUp className="h-4 w-4" />
-                  </Button>
+                  {isGenerating ? (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 rounded-full"
+                      onClick={handleStopGenerating}
+                      aria-label="Stop generating"
+                    >
+                      <Square className="h-3 w-3 fill-current" />
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="default"
+                      size="icon"
+                      className="h-8 w-8 rounded-full"
+                      disabled={!inputValue.trim()}
+                      onClick={handleSendMessage}
+                      aria-label="Send message"
+                    >
+                      <ArrowUp className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>

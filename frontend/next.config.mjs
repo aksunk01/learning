@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone',
+  devIndicators: {
+    position: 'bottom-right',
+  },
   allowedDevOrigins: [
     'macbook',
     'macbook:3000',

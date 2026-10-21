@@ -1,3 +1,4 @@
+from pathlib import Path
 from uuid import UUID, uuid4
 
 from io import BytesIO
@@ -21,6 +22,12 @@ router = APIRouter(
     tags=['Course Materials']
 )
 
+# Must match the extensions DocumentProcessingService has a parser for
+# (app/services/document_processing/service.py) - anything else would
+# upload fine but silently fail (or produce garbage) at processing time.
+ALLOWED_MATERIAL_EXTENSIONS = {".pdf", ".docx", ".pptx", ".txt"}
+MAX_MATERIAL_FILE_SIZE_BYTES = 25 * 1024 * 1024
+
 
 @router.post("", response_model=CourseMaterialResponse, status_code=status.HTTP_201_CREATED)
 async def create_course_material(course_id: UUID,
@@ -36,7 +43,23 @@ async def create_course_material(course_id: UUID,
     if course is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
 
+    extension = Path(file.filename or "").suffix.lower()
+    if extension not in ALLOWED_MATERIAL_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Unsupported file type '{extension or 'unknown'}'. "
+                f"Allowed types: {', '.join(sorted(ALLOWED_MATERIAL_EXTENSIONS))}"
+            ),
+        )
+
     file_data = await file.read()
+
+    if len(file_data) > MAX_MATERIAL_FILE_SIZE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File exceeds the {MAX_MATERIAL_FILE_SIZE_BYTES // (1024 * 1024)}MB size limit",
+        )
 
     material_id = uuid4()
 

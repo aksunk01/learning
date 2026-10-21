@@ -21,6 +21,7 @@ __pycache__/
 
 #Docker
 *.log
+minio-image.tar
 
 #Aider
 .aider*
@@ -32,3 +33,6 @@ __pycache__/
 #Backups folder
 backups/
 backend/venv/
+
+#Production backup snapshots (contain data and .env secrets)
+backups-prod/*/

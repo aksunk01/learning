@@ -1,8 +1,12 @@
+import uuid
+
 from pydantic import BaseModel
 
-class CourseQuestionRequest(BaseModel):
+class AskRequest(BaseModel):
     question: str
     limit: int = 5
+    conversation_id: uuid.UUID | None = None
+    course_id: uuid.UUID | None = None
 
 
 class RAGSource(BaseModel):
@@ -15,8 +19,10 @@ class RAGSource(BaseModel):
     slide_number: int | None = None
     section: str | None = None
     distance: float
-    
 
-class CourseQuestionResponse(BaseModel):
+
+class AskResponse(BaseModel):
     answer: str
     sources: list[RAGSource]
+    conversation_id: uuid.UUID
+    course_id: uuid.UUID | None = None

@@ -1,7 +1,7 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -61,6 +61,18 @@ class Assignment(Base):
         nullable=True
     )
 
+    category_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("grading_categories.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
+
+    score_earned: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True
+    )
+
     source_page: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True
@@ -98,6 +110,26 @@ class Assignment(Base):
         nullable=True
     )
 
+    estimated_minutes: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True
+    )
+
+    difficulty: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True
+    )
+
+    scheduled_date: Mapped[date | None] = mapped_column(
+        Date,
+        nullable=True
+    )
+
+    priority_override: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -125,4 +157,16 @@ class Assignment(Base):
         "AssignmentMaterial",
         back_populates="assignment",
         cascade="all, delete-orphan"
+    )
+
+    subtasks = relationship(
+        "AssignmentSubtask",
+        back_populates="assignment",
+        cascade="all, delete-orphan",
+        order_by="AssignmentSubtask.order_index"
+    )
+
+    category = relationship(
+        "GradingCategory",
+        back_populates="assignments"
     )
