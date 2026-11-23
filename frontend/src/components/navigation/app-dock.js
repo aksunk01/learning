@@ -10,6 +10,7 @@ import {
   LogOutIcon,
   UserIcon,
   ChevronsRightIcon,
+  CalculatorIcon,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -18,6 +19,7 @@ const MAIN_NAV_ITEMS = [
   { href: "/courses", label: "Courses", icon: BookOpenIcon, match: (p) => p === "/courses" || p.startsWith("/courses/") },
   { href: "/calendar", label: "Calendar", icon: CalendarIcon, match: (p) => p === "/calendar" },
   { href: "/assistant", label: "AI Assistant", icon: Sparkles, match: (p) => p === "/assistant" },
+  { href: "/grade-calculator", label: "Grade Calculator", icon: CalculatorIcon, match: (p) => p === "/grade-calculator" },
 ];
 
 const ACCOUNT_ITEM = { href: "/account", label: "Account", icon: UserIcon, match: (p) => p === "/account" };
