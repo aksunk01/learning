@@ -16,6 +16,25 @@ router = APIRouter(
     tags=['Courses']
 )
 
+
+def get_owned_course(course_id: UUID, db: Session, current_user: User) -> Course:
+    course = (
+        db.query(Course)
+        .filter(
+            Course.id == course_id,
+            Course.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if course is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Course not found"
+        )
+
+    return course
+
 def validate_semester_ownership(semester_id: UUID | None, db: Session, user_id: UUID) -> None:
     if semester_id is None:
         return

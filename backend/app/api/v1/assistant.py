@@ -7,10 +7,10 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api.auth import get_current_user
+from app.api.v1.courses import get_owned_course
 from app.db.dependencies import get_db
 from app.models.chat_message import ChatMessage
 from app.models.conversation import Conversation
-from app.models.course import Course
 from app.models.user import User
 from app.schemas.rag import AskRequest, AskResponse
 from app.services.rag import RAGService
@@ -20,25 +20,6 @@ router = APIRouter(
     prefix="/assistant",
     tags=["Assistant"]
 )
-
-
-def _get_owned_course(course_id: UUID, db: Session, current_user: User) -> Course:
-    course = (
-        db.query(Course)
-        .filter(
-            Course.id == course_id,
-            Course.user_id == current_user.id
-        )
-        .first()
-    )
-
-    if course is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Course not found"
-        )
-
-    return course
 
 
 def _get_or_create_conversation(
@@ -88,7 +69,7 @@ def _record_turn(db: Session, conversation: Conversation, question: str, answer:
 @router.post("/ask", response_model=AskResponse)
 def ask(request: AskRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if request.course_id is not None:
-        _get_owned_course(request.course_id, db, current_user)
+        get_owned_course(request.course_id, db, current_user)
 
     conversation = _get_or_create_conversation(request.conversation_id, request.course_id, db, current_user)
 
@@ -117,7 +98,7 @@ def ask(request: AskRequest, db: Session = Depends(get_db), current_user: User =
 @router.post("/ask/stream")
 def ask_stream(request: AskRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if request.course_id is not None:
-        _get_owned_course(request.course_id, db, current_user)
+        get_owned_course(request.course_id, db, current_user)
 
     conversation = _get_or_create_conversation(request.conversation_id, request.course_id, db, current_user)
 

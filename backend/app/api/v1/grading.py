@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.auth import get_current_user
+from app.api.v1.courses import get_owned_course
 from app.db.dependencies import get_db
 from app.models.course import Course
 from app.models.course_material import CourseMaterial
@@ -28,25 +29,6 @@ grade_router = APIRouter(
     prefix="/courses/{course_id}/grade",
     tags=["Grading"]
 )
-
-
-def _get_owned_course(course_id: UUID, db: Session, current_user: User) -> Course:
-    course = (
-        db.query(Course)
-        .filter(
-            Course.id == course_id,
-            Course.user_id == current_user.id
-        )
-        .first()
-    )
-
-    if not course:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Course not found"
-        )
-
-    return course
 
 
 def _get_owned_category(course_id: UUID, category_id: UUID, db: Session, current_user: User) -> GradingCategory:
@@ -74,7 +56,7 @@ def _get_owned_category(course_id: UUID, category_id: UUID, db: Session, current
 def list_grading_categories(course_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     "List a course's grading categories"
 
-    _get_owned_course(course_id, db, current_user)
+    get_owned_course(course_id, db, current_user)
 
     return (
         db.query(GradingCategory)
@@ -88,7 +70,7 @@ def list_grading_categories(course_id: UUID, db: Session = Depends(get_db), curr
 def create_grading_category(course_id: UUID, category_create: GradingCategoryCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     "Manually create a grading category for a course"
 
-    _get_owned_course(course_id, db, current_user)
+    get_owned_course(course_id, db, current_user)
 
     category = GradingCategory(
         course_id=course_id,
@@ -137,7 +119,7 @@ def delete_grading_category(course_id: UUID, category_id: UUID, db: Session = De
 def detect_grading_categories(course_id: UUID, material_id: UUID | None = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     "Re-run grading-category extraction against an already-processed syllabus material"
 
-    course = _get_owned_course(course_id, db, current_user)
+    course = get_owned_course(course_id, db, current_user)
 
     if material_id is not None:
         material = (
@@ -208,6 +190,6 @@ def detect_grading_categories(course_id: UUID, material_id: UUID | None = None, 
 def get_course_grade(course_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     "Compute the current course grade from graded assignments and category weights"
 
-    _get_owned_course(course_id, db, current_user)
+    get_owned_course(course_id, db, current_user)
 
     return compute_course_grade(db, course_id)
