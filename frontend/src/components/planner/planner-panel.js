@@ -80,12 +80,6 @@ export function PlannerPanel({ open, onOpenChange, token }) {
         <div className="px-4 pb-4">
           {error && <div className="text-destructive mb-4">{error}</div>}
 
-          {todayPlan?.is_fallback && todayPlan.items.length > 0 && (
-            <p className="text-sm text-muted-foreground mb-4">
-              Nothing homework/project-related is due today, so here&apos;s what&apos;s coming up next.
-            </p>
-          )}
-
           {isLoading ? (
             <div className="space-y-4">
               {[1, 2, 3].map((i) => (
@@ -99,22 +93,45 @@ export function PlannerPanel({ open, onOpenChange, token }) {
               ))}
             </div>
           ) : (
-            <div className="space-y-2">
-              {todayPlan && todayPlan.items.length > 0 ? (
-                todayPlan.items.map((item) => (
-                  <PlannerItemCard
-                    key={item.assignment_id}
-                    item={item}
-                    onComplete={handleCompleteClick}
-                    completing={completingItem?.assignment_id === item.assignment_id}
-                  />
-                ))
-              ) : (
-                <Card>
-                  <CardContent className="p-6 text-center text-muted-foreground">
-                    Nothing on your list - you&apos;re caught up.
-                  </CardContent>
-                </Card>
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold text-muted-foreground">Focus Now</h3>
+
+                {todayPlan && todayPlan.focus_now.length > 0 ? (
+                  <div className="space-y-2">
+                    {todayPlan.focus_now.map((item) => (
+                      <PlannerItemCard
+                        key={item.assignment_id}
+                        item={item}
+                        onComplete={handleCompleteClick}
+                        completing={completingItem?.assignment_id === item.assignment_id}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <Card>
+                    <CardContent className="p-6 text-center text-muted-foreground">
+                      Nothing on your list - you&apos;re caught up.
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+
+              {todayPlan && todayPlan.up_next.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-muted-foreground">Up Next</h3>
+
+                  <div className="space-y-2">
+                    {todayPlan.up_next.map((item) => (
+                      <PlannerItemCard
+                        key={item.assignment_id}
+                        item={item}
+                        onComplete={handleCompleteClick}
+                        completing={completingItem?.assignment_id === item.assignment_id}
+                      />
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           )}

@@ -1,14 +1,8 @@
-"""Deterministic logic for the Planner feature's daily to-do list.
+"""Daily plan assembly for the Planner feature.
 
-No scoring/estimation/AI happens here - the list is built entirely from
-assignment type and due date:
-
-  1. Any incomplete homework/project assignment due today (or overdue) goes
-     on the list.
-  2. If nothing homework/project is due today, fall back to surfacing the
-     single next-due homework item, the single next-due project item, and
-     the single next-due exam item (whichever of those exist), so the list
-     is never empty while work remains.
+Fetches candidate assignments (overdue + upcoming) and delegates scoring and
+capacity-aware selection to planner_scoring.py. No AI involved here or there -
+the LLM layer (planner_ai.py) only phrases/explains results, it doesn't pick them.
 """
 
 from dataclasses import dataclass
@@ -22,17 +16,8 @@ from app.api.v1.assignments import (
     query_overdue_assignments,
     query_upcoming_assignments,
 )
-from app.models.assignment import Assignment
-
-# Types that make up the day-to-day work list. Exams only show up via the
-# fallback (they're one-off, high-stakes events rather than recurring work).
-DUE_TODAY_TYPES = ("homework", "project")
-
-FALLBACK_TYPES = (
-    ("homework", "Next homework due"),
-    ("project", "Next project due"),
-    ("exam", "Next exam due"),
-)
+from app.services import planner_scoring
+from app.services.planner_scoring import ScoredAssignment
 
 
 @dataclass
@@ -44,11 +29,21 @@ class PlannerItem:
     assignment_type: str | None
     due_at: datetime | None
     is_overdue: bool
+    score: float
+    estimated_minutes: int
     reason: str
 
 
-def _to_planner_item(assignment: Assignment, today, reason: str) -> PlannerItem:
-    is_overdue = assignment.due_at is not None and assignment.due_at.date() < today
+def _reason(item: ScoredAssignment) -> str:
+    if item.is_overdue:
+        return "Overdue"
+    if item.is_due_today:
+        return "Due today"
+    return "Upcoming priority"
+
+
+def _to_planner_item(item: ScoredAssignment) -> PlannerItem:
+    assignment = item.assignment
 
     return PlannerItem(
         assignment_id=assignment.id,
@@ -57,37 +52,20 @@ def _to_planner_item(assignment: Assignment, today, reason: str) -> PlannerItem:
         title=assignment.title,
         assignment_type=assignment.assignment_type,
         due_at=assignment.due_at,
-        is_overdue=is_overdue,
-        reason="Overdue" if is_overdue else reason,
+        is_overdue=item.is_overdue,
+        score=item.score,
+        estimated_minutes=item.estimated_minutes,
+        reason=_reason(item),
     )
 
 
-def build_daily_todolist(db: Session, user, semester_id: UUID | None = None) -> tuple[list[PlannerItem], bool]:
-    """Returns (items, is_fallback)."""
+def build_daily_plan(db: Session, user, semester_id: UUID | None = None) -> tuple[list[PlannerItem], list[PlannerItem]]:
+    """Returns (focus_now, up_next)."""
     overdue = query_overdue_assignments(db=db, user_id=user.id, semester_id=semester_id)
     upcoming = query_upcoming_assignments(db=db, user_id=user.id, semester_id=semester_id)
 
-    today = current_wall_clock_time().date()
+    now = current_wall_clock_time()
 
-    due_now = [a for a in overdue if a.assignment_type in DUE_TODAY_TYPES] + [
-        a
-        for a in upcoming
-        if a.assignment_type in DUE_TODAY_TYPES and a.due_at is not None and a.due_at.date() == today
-    ]
+    focus_now, up_next = planner_scoring.select_daily_plan(overdue + upcoming, now)
 
-    if due_now:
-        due_now.sort(key=lambda a: a.due_at)
-        items = [_to_planner_item(a, today, "Due today") for a in due_now]
-        return items, False
-
-    # Fallback: nothing homework/project due today - surface the next
-    # upcoming item of each key type instead.
-    all_active = sorted(overdue + upcoming, key=lambda a: a.due_at)
-
-    items = []
-    for assignment_type, reason in FALLBACK_TYPES:
-        match = next((a for a in all_active if a.assignment_type == assignment_type), None)
-        if match is not None:
-            items.append(_to_planner_item(match, today, reason))
-
-    return items, True
+    return [_to_planner_item(i) for i in focus_now], [_to_planner_item(i) for i in up_next]
