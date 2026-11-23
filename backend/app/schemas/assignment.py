@@ -6,9 +6,12 @@ from pydantic import AliasPath, BaseModel, ConfigDict, field_validator, Field
 from app.schemas.grading_category import GradingCategoryResponse
 
 
-def _validate_difficulty(v: int | None) -> int | None:
-    if v is not None and (v < 1 or v > 5):
-        raise ValueError("Difficulty must be between 1 and 5 inclusive")
+EFFORT_LEVELS = ("light", "moderate", "heavy")
+
+
+def _validate_effort(v: str | None) -> str | None:
+    if v is not None and v not in EFFORT_LEVELS:
+        raise ValueError(f"Effort must be one of {EFFORT_LEVELS}")
     return v
 
 
@@ -34,7 +37,7 @@ class AssignmentUpdate(BaseModel):
     category_id: UUID | None = None
     score_earned: float | None = None
     estimated_minutes: int | None = None
-    difficulty: int | None = None
+    effort: str | None = None
     scheduled_date: date | None = None
     priority_override: float | None = None
 
@@ -68,10 +71,10 @@ class AssignmentUpdate(BaseModel):
     def score_earned_must_not_be_negative(cls, v: float | None) -> float | None:
         return _validate_score_earned(v)
 
-    @field_validator("difficulty")
+    @field_validator("effort")
     @classmethod
-    def difficulty_must_be_between_1_and_5(cls, v: int | None) -> int | None:
-        return _validate_difficulty(v)
+    def effort_must_be_a_known_level(cls, v: str | None) -> str | None:
+        return _validate_effort(v)
 
     @field_validator("estimated_minutes")
     @classmethod
@@ -142,7 +145,7 @@ class AssignmentDetailResponse(BaseModel):
     completed_at: datetime | None
 
     estimated_minutes: int | None
-    difficulty: int | None
+    effort: str | None
     scheduled_date: date | None
     priority_override: float | None
 
@@ -166,7 +169,7 @@ class AssignmentCreate(BaseModel):
     category_id: UUID | None = None
     score_earned: float | None = None
     estimated_minutes: int | None = None
-    difficulty: int | None = None
+    effort: str | None = None
     scheduled_date: date | None = None
     priority_override: float | None = None
 
@@ -199,10 +202,10 @@ class AssignmentCreate(BaseModel):
     def score_earned_must_not_be_negative(cls, v: float | None) -> float | None:
         return _validate_score_earned(v)
 
-    @field_validator("difficulty")
+    @field_validator("effort")
     @classmethod
-    def difficulty_must_be_between_1_and_5(cls, v: int | None) -> int | None:
-        return _validate_difficulty(v)
+    def effort_must_be_a_known_level(cls, v: str | None) -> str | None:
+        return _validate_effort(v)
 
     @field_validator("estimated_minutes")
     @classmethod
@@ -252,7 +255,7 @@ class AssignmentResponse(BaseModel):
     completed_at: datetime | None
 
     estimated_minutes: int | None
-    difficulty: int | None
+    effort: str | None
     scheduled_date: date | None
     priority_override: float | None
 

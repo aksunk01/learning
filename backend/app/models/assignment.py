@@ -115,8 +115,8 @@ class Assignment(Base):
         nullable=True
     )
 
-    difficulty: Mapped[int | None] = mapped_column(
-        Integer,
+    effort: Mapped[str | None] = mapped_column(
+        String(10),
         nullable=True
     )
 

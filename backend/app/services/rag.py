@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.models.conversation import Conversation
 from app.models.course import Course
 from app.services.generation import GenerationError, GenerationService, TASK_SYSTEM_INSTRUCTION
+from app.services.grade_calculation import compute_course_grade
 from app.services.retrieval import RetrievalService
 
 _MAX_HISTORY_MESSAGES = 10  # ~5 prior turns
@@ -186,6 +187,15 @@ class RAGService:
             key=lambda a: abs((a.due_at - now).total_seconds()) if a.due_at is not None else float("inf")
         )[:_MAX_TASK_ITEMS]
 
+        # Grades are computed per-course (not per-assignment) so this is cached
+        # across assignments that share a course rather than recomputed per line.
+        course_grades: dict[UUID, object] = {}
+
+        def _course_grade(course_id: UUID):
+            if course_id not in course_grades:
+                course_grades[course_id] = compute_course_grade(db, course_id)
+            return course_grades[course_id]
+
         lines: list[str] = []
 
         for source_id, assignment in enumerate(assignments, start=1):
@@ -208,8 +218,36 @@ class RAGService:
             if assignment.points is not None:
                 details.append(f"points: {assignment.points}")
 
+            if assignment.effort is not None:
+                details.append(f"effort required: {assignment.effort}")
+
             if assignment.estimated_minutes is not None:
                 details.append(f"estimated time: {assignment.estimated_minutes} minutes")
+
+            # Grade-boundary context: how much this assignment's category
+            # already stands to gain/lose, so the model can weigh "this is
+            # worth a lot but the category is already solid" against "this
+            # category is weak and worth more of the course grade."
+            if assignment.category_id is not None:
+                course_grade = _course_grade(assignment.course_id)
+                category_grade = next(
+                    (c for c in course_grade.categories if c.id == assignment.category_id),
+                    None
+                )
+
+                if category_grade is not None:
+                    category_status = (
+                        f"currently at {category_grade.percent:.0f}%"
+                        if category_grade.percent is not None
+                        else "not yet graded"
+                    )
+                    details.append(
+                        f"grading category '{category_grade.name}' is {category_status} "
+                        f"and worth {category_grade.weight_percent}% of the course grade"
+                    )
+
+                if course_grade.overall_percent is not None:
+                    details.append(f"course grade so far: {course_grade.overall_percent:.0f}%")
 
             lines.append(f"[{source_id}] {assignment.title} - " + ", ".join(details))
 

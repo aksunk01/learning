@@ -42,6 +42,7 @@ const assignmentSchema = z.object({
     return !isNaN(num) && num >= 0;
   }, "Score earned must be a number greater than or equal to 0"),
   categoryId: z.string().optional().nullable(),
+  effort: z.string().optional().nullable(),
 });
 
 export function EditAssignmentDialog({ 
@@ -65,6 +66,7 @@ export function EditAssignmentDialog({
       points: "",
       scoreEarned: "",
       categoryId: "",
+      effort: "",
     },
   });
 
@@ -81,6 +83,7 @@ useEffect(() => {
       points: assignment.points?.toString() || "",
       scoreEarned: assignment.score_earned?.toString() || "",
       categoryId: assignment.category_id || "",
+      effort: assignment.effort || "",
     });
   }
 }, [assignment, form]);
@@ -119,6 +122,7 @@ const onSubmit = async (data) => {
       ? parseFloat(data.scoreEarned)
       : null,
     category_id: data.categoryId || null,
+    effort: data.effort || null,
   };
 
   try {
@@ -233,6 +237,20 @@ const onSubmit = async (data) => {
                 ))}
               </select>
               <FieldError>{form.formState.errors.categoryId?.message}</FieldError>
+            </Field>
+
+            <Field name="effort">
+              <FieldLabel>Effort</FieldLabel>
+              <select
+                className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-2.5 py-1 text-base shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
+                {...form.register("effort")}
+              >
+                <option value="">Unspecified</option>
+                <option value="light">Light - not much time</option>
+                <option value="moderate">Moderate - a decent chunk of time</option>
+                <option value="heavy">Heavy - a lot of time</option>
+              </select>
+              <FieldError>{form.formState.errors.effort?.message}</FieldError>
             </Field>
           </FieldGroup>
           
