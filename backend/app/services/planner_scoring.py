@@ -44,6 +44,12 @@ DEFAULT_EFFORT_MINUTES = EFFORT_MINUTES["moderate"]
 
 ALPHA = 0.6
 
+# "light_first" mode: items due further out than this get a much steeper effort
+# penalty, so light items due later in the week are cleared early and heavy ones
+# wait until they're close. Items due sooner score as usual so deadlines still win.
+LIGHT_FIRST_ALPHA = 1.5
+LIGHT_FIRST_URGENT_DAYS = 1
+
 DAILY_BUDGET_MINUTES = 5 * 60
 
 UP_NEXT_CUTOFF = 10
@@ -74,7 +80,7 @@ def estimate_minutes(assignment: Assignment) -> int:
     return EFFORT_MINUTES.get(assignment.effort, DEFAULT_EFFORT_MINUTES)
 
 
-def score_assignment(assignment: Assignment, now: datetime) -> ScoredAssignment:
+def score_assignment(assignment: Assignment, now: datetime, light_first: bool = False) -> ScoredAssignment:
     days_left = (assignment.due_at.date() - now.date()).days
 
     is_overdue = days_left < 0
@@ -86,7 +92,8 @@ def score_assignment(assignment: Assignment, now: datetime) -> ScoredAssignment:
         urgency = _urgency(days_left)
         type_weight = TYPE_WEIGHTS.get(assignment.assignment_type, DEFAULT_TYPE_WEIGHT)
         effort_weight = EFFORT_SCORE_WEIGHTS.get(assignment.effort, DEFAULT_EFFORT_SCORE_WEIGHT)
-        score = (urgency * type_weight) / (effort_weight ** ALPHA)
+        alpha = LIGHT_FIRST_ALPHA if light_first and days_left > LIGHT_FIRST_URGENT_DAYS else ALPHA
+        score = (urgency * type_weight) / (effort_weight ** alpha)
 
     return ScoredAssignment(
         assignment=assignment,
@@ -104,6 +111,7 @@ def select_daily_plan(
     now: datetime,
     daily_budget_minutes: int = DAILY_BUDGET_MINUTES,
     up_next_cutoff: int = UP_NEXT_CUTOFF,
+    light_first: bool = False,
 ) -> tuple[list[ScoredAssignment], list[ScoredAssignment]]:
     """Returns (focus_now, up_next).
 
@@ -114,7 +122,7 @@ def select_daily_plan(
     greedy heuristic, not an exhaustive/optimal packing. Everything not taken
     becomes Up Next, still in score order, truncated to up_next_cutoff.
     """
-    scored = [score_assignment(a, now) for a in candidates]
+    scored = [score_assignment(a, now, light_first) for a in candidates]
     scored.sort(key=lambda s: (-s.score, s.assignment.due_at))
 
     focus_now: list[ScoredAssignment] = []

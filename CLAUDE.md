@@ -51,7 +51,7 @@ npm run lint      # eslint
 ```bash
 scripts/start.sh   # docker compose -f docker-compose.prod.yml up --build, waits for health, verifies alembic head, checks Tailscale
 scripts/stop.sh    # docker compose -f docker-compose.prod.yml down (keeps volumes)
-scripts/refresh.sh # stop.sh -> git pull -> start.sh
+scripts/bounce.sh  # stop.sh -> git pull -> start.sh
 ```
 
 Production containers serve the backend and frontend over Tailscale (sidecars `tailscale-backend` / `tailscale-frontend`); the backend's `docker-entrypoint.sh` runs `alembic upgrade head` before starting uvicorn on every boot.

@@ -9,6 +9,7 @@ class UserResponse(BaseModel):
     email: str
     display_name: str | None = None
     dashboard_layout: str
+    planner_algorithm: str
     favorite_semester_id: UUID | None = None
     created_at: datetime
 
@@ -27,6 +28,7 @@ class UserRead(BaseModel):
 class UserUpdate(BaseModel):
     display_name: str | None = Field(default=None, max_length=100)
     dashboard_layout: Literal["standard", "compact", "board", "kanban"] | None = None
+    planner_algorithm: Literal["balanced", "light_first"] | None = None
     favorite_semester_id: UUID | None = None
 
 class PasswordChange(BaseModel):

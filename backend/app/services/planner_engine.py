@@ -66,6 +66,8 @@ def build_daily_plan(db: Session, user, semester_id: UUID | None = None) -> tupl
 
     now = current_wall_clock_time()
 
-    focus_now, up_next = planner_scoring.select_daily_plan(overdue + upcoming, now)
+    focus_now, up_next = planner_scoring.select_daily_plan(
+        overdue + upcoming, now, light_first=user.planner_algorithm == "light_first"
+    )
 
     return [_to_planner_item(i) for i in focus_now], [_to_planner_item(i) for i in up_next]

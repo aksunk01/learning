@@ -63,6 +63,19 @@ const LAYOUT_OPTIONS = [
   },
 ];
 
+const PLANNER_OPTIONS = [
+  {
+    value: "balanced",
+    label: "Balanced",
+    description: "Deadlines first; light work gets a mild edge over heavy work.",
+  },
+  {
+    value: "light_first",
+    label: "Light first",
+    description: "Clear light items due later in the week early, and save heavy items for when they are close.",
+  },
+];
+
 const KANBAN_COLUMN_META = {
   overdue: { label: "Overdue", icon: AlertTriangleIcon },
   in_progress: { label: "In Progress", icon: Loader2Icon },
@@ -74,6 +87,7 @@ const NAV_SECTIONS = [
   { id: "profile", label: "Public profile" },
   { id: "appearance", label: "Appearance" },
   { id: "dashboard-layout", label: "Dashboard layout" },
+  { id: "planner", label: "Daily planner" },
   { id: "kanban-columns", label: "Kanban columns" },
   { id: "security", label: "Password" },
 ];
@@ -101,6 +115,7 @@ export default function AccountPage() {
   const [profileMessage, setProfileMessage] = useState("");
 
   const [layoutSaving, setLayoutSaving] = useState(false);
+  const [plannerSaving, setPlannerSaving] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -196,6 +211,20 @@ export default function AccountPage() {
       setError(err.message);
     } finally {
       setLayoutSaving(false);
+    }
+  };
+
+  const handlePlannerChange = async (value) => {
+    if (!token || value === user?.planner_algorithm) return;
+    setPlannerSaving(true);
+
+    try {
+      const updated = await updateProfile(token, { planner_algorithm: value });
+      setUser(updated);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setPlannerSaving(false);
     }
   };
 
@@ -382,6 +411,35 @@ export default function AccountPage() {
                       <Icon className="h-4 w-4" />
                       {label}
                     </div>
+                    <p className="text-xs text-muted-foreground">{description}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Daily planner */}
+          <section id="planner" ref={registerSection("planner")} className="py-10 scroll-mt-6">
+            <h2 className="text-base font-semibold mb-1">Daily planner</h2>
+            <p className="text-sm text-muted-foreground mb-6">Pick how your daily to-do list is prioritized</p>
+
+            {isLoading ? (
+              <Skeleton className="h-24 w-full max-w-sm" />
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl">
+                {PLANNER_OPTIONS.map(({ value, label, description }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    disabled={plannerSaving}
+                    onClick={() => handlePlannerChange(value)}
+                    className={`flex flex-col gap-2 rounded-lg border p-3 text-left transition-colors disabled:opacity-60 ${
+                      user?.planner_algorithm === value
+                        ? "border-primary bg-primary/5"
+                        : "hover:bg-muted/60"
+                    }`}
+                  >
+                    <div className="text-sm font-medium">{label}</div>
                     <p className="text-xs text-muted-foreground">{description}</p>
                   </button>
                 ))}

@@ -38,6 +38,13 @@ class User(Base):
         server_default="standard"
     )
 
+    planner_algorithm: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="balanced",
+        server_default="balanced"
+    )
+
     favorite_semester_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("semesters.id", ondelete="SET NULL"),

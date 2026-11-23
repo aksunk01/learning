@@ -33,6 +33,9 @@ def update_me(
     if update.dashboard_layout is not None:
         current_user.dashboard_layout = update.dashboard_layout
 
+    if update.planner_algorithm is not None:
+        current_user.planner_algorithm = update.planner_algorithm
+
     if "favorite_semester_id" in update.model_fields_set:
         if update.favorite_semester_id is not None:
             semester = (
