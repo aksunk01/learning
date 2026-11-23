@@ -12,12 +12,11 @@ class PlannerItemResponse(BaseModel):
     assignment_type: str | None = None
     due_at: datetime | None = None
     is_overdue: bool
+    score: float
+    estimated_minutes: int
     reason: str
 
 
 class TodayPlanResponse(BaseModel):
-    items: list[PlannerItemResponse] = Field(default_factory=list)
-    # True when nothing homework/project is due today, so the list below is
-    # the "next up" fallback (one homework, one project, one exam) instead
-    # of an actual due-today list.
-    is_fallback: bool
+    focus_now: list[PlannerItemResponse] = Field(default_factory=list)
+    up_next: list[PlannerItemResponse] = Field(default_factory=list)
